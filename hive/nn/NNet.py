@@ -18,7 +18,7 @@ args = dotdict({
     'lr': 0.001,
     'dropout': 0.3,
     'epochs': 10,
-    'batch_size': 64,
+    'batch_size': 1,
     'cuda': torch.cuda.is_available(),
     'num_channels': 512,
 })
@@ -53,23 +53,27 @@ class NNetWrapper(NeuralNet):
             for _ in t:
                 sample_ids = np.random.randint(len(examples), size=args.batch_size)
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
-                boards = torch.FloatTensor(np.array(boards).astype(np.float64))
+                boards_nn = []
+                for board in boards:
+                    boards_nn.append(board.rep_nn())
+                boards_nn = torch.stack(boards_nn,dim=0)
+                # boards = torch.FloatTensor(np.array(boards).astype(np.float64))
                 target_pis = torch.FloatTensor(np.array(pis))
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # predict
                 if args.cuda:
-                    boards, target_pis, target_vs = boards.contiguous().cuda(), target_pis.contiguous().cuda(), target_vs.contiguous().cuda()
+                    boards_nn, target_pis, target_vs = boards_nn.contiguous().cuda(), target_pis.contiguous().cuda(), target_vs.contiguous().cuda()
 
                 # compute output
-                out_pi, out_v = self.nnet(boards)
+                out_pi, out_v = self.nnet(boards_nn)
                 l_pi = self.loss_pi(target_pis, out_pi)
                 l_v = self.loss_v(target_vs, out_v)
                 total_loss = l_pi + l_v
 
                 # record loss
-                pi_losses.update(l_pi.item(), boards.size(0))
-                v_losses.update(l_v.item(), boards.size(0))
+                pi_losses.update(l_pi.item(), boards_nn.size(0))
+                v_losses.update(l_v.item(), boards_nn.size(0))
                 t.set_postfix(Loss_pi=pi_losses, Loss_v=v_losses)
 
                 # compute gradient and do SGD step

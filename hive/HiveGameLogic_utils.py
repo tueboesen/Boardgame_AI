@@ -4,14 +4,16 @@ import typing
 import torch
 import igraph as ig
 
+from hive.viz import draw_board
+
 PieceType = int
 BoolTensor = torch.BoolTensor
-PIECE_TYPES = [QUEEN, BEETLE, GRASSHOPPER, SPIDER, ANT] = range(0,5)
+PIECE_TYPES = [QUEEN, SPIDER, BEETLE, GRASSHOPPER, ANT] = range(0,5)
 
-PIECE_SYMBOLS = ["q", "b", "g", "s", "a"]
-PIECE_NAMES = ["queen", "beetle", "grasshopper", "spider", "ant"]
+PIECE_SYMBOLS = ["q", "s", "b", "g", "a"]
+PIECE_NAMES = ["queen", "spider", "beetle", "grasshopper", "ant"]
 
-PIECES_PER_PLAYER = ["q", 'b', 'b', 's', 's', 'g', 'g', 'g', 'a', 'a', 'a']
+PIECES_PER_PLAYER = ["q", 's', 's', 'b', 'b', 'g', 'g', 'g', 'a', 'a', 'a']
 
 DIRECTIONS = [(-1, 0), (1, 0), (0, 1), (0, -1), (1, -1), (-1, 1)]
 
@@ -154,14 +156,15 @@ def find_moveable_nodes(g: ig.Graph) -> list[int]:
     :param g:
     :return: moveable node indices
     """
-    edges = torch.as_tensor(g.get_edgelist())
+    # edges = torch.as_tensor(g.get_edgelist())
     nodes = g.vcount()
-    bridges = g.bridges()
-    degrees = g.degree()
-    bridge_nodes = edges[bridges].unique().tolist()
-    leaf_nodes = [i for i, degree in enumerate(degrees) if degree == 1]
-    moveable_node_indices = set(range(nodes)).difference(bridge_nodes)
-    moveable_node_indices.update(leaf_nodes)
+    # bridges = g.bridges()
+    # degrees = g.degree()
+    # bridge_nodes = edges[bridges].unique().tolist()
+    articulation_points = g.articulation_points()
+    # leaf_nodes = [i for i, degree in enumerate(degrees) if degree == 1]
+    moveable_node_indices = set(range(nodes)).difference(articulation_points)
+    # moveable_node_indices.update(leaf_nodes)
     return list(moveable_node_indices)
 
 
@@ -204,4 +207,63 @@ def generate_graph(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
     node_combinations = torch.combinations(torch.arange(nodes), 2)
     edges = node_combinations[mask]
     g = ig.Graph(nodes, edges.tolist())
+    if nodes > 0:
+        connected_graph = g.is_connected()
+        if not connected_graph:
+            draw_board(board_state)
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            ig.plot(g, target=ax)
+            assert connected_graph
+
+    return g, node_indices
+
+
+def generate_graph_nauty(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
+    """
+    Generates a graph given the board_state.
+
+    :param bitboard_state:
+    :return: Graph of bitboard_state, and the associated node position indices
+    """
+    bs = board_state.clone()
+    node_indices = bs.nonzero()
+    mask = bs != 0
+    if mask.any():
+        bs[mask] -= 1
+        node_indices2 = bs.nonzero()
+        if len(node_indices2)>0:
+            node_indices = torch.cat((node_indices,node_indices2))
+
+    nodes = len(node_indices)
+
+    # node_indices_axial = self.offset_to_axial(node_indices)
+    node_pairs = list(itertools.combinations(node_indices, 2))
+    distances = axial_distance(node_pairs)
+    mask = distances < 1.1
+    node_combinations = torch.combinations(torch.arange(nodes), 2)
+    edges = node_combinations[mask]
+    g = ig.Graph(nodes, edges.tolist())
+    # g.get_automorphisms_vf2()
+
+    n_nodes = 4
+    edges = {0: [1, 2, 3],
+             1: [0, 2, 3],
+             2: [0],
+             3: [0, 1]}
+    colors = [set((0, 1)), set((2, 3))]
+    G = pynauty.Graph(nodes, adjacency_dict=edges, vertex_coloring=colors)
+
+    G = pynauty.Graph(number_of_vertices=5, directed=False,
+                      adjacency_dict={
+                          0: [1, 2, 3],
+                          2: [1, 3, 4],
+                          4: [3],
+                      },
+                      vertex_coloring=[
+                      ],
+                      )
+    # Call pynauty.autgrp(G) to get the automorphism of the graph, which can be used for string labelling.
+    # Call pynauty.canon_label(G) to get the canonical labelling of vertices.
+
     return g, node_indices

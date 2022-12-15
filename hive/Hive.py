@@ -23,6 +23,7 @@ class Hive:
         self.moves = torch.zeros(self.npieces,2*self.npieces+2,2*self.npieces+2,dtype=torch.bool)
         self._i = 0
         self.lost = False
+        self.bit_state = None
         for i, piece in enumerate(PIECES_PER_PLAYER):
             self.types[i] = piece_id(piece)
 
@@ -72,28 +73,8 @@ class Hive:
         :param r:
         :return:
         """
-        move_dst = torch.tensor((q, r))
-        move_src = self.qr[idx].clone()
-        indices = self.find_matching_coordinates(move_dst.tolist())
-        self.pieces_under[idx] = 0
-        for idx in indices:
-            if self.in_play[idx]:
-                self.level[idx] -= 1
-                self.pieces_under[idx] += 1
         self.qr[idx] = torch.tensor((q, r))
-        indices = self.find_matching_coordinates(move_src.tolist())
-        for idx in indices:
-            if self.in_play[idx]:
-                self.level[idx] += 1
         self.in_play[idx] = True
-
-
-    def find_matching_coordinates(self,xy):
-        qr_list = self.qr.tolist()
-        idx =[i for i, qr in enumerate(qr_list) if qr[0]==xy[0] and qr[1]==xy[1]]
-        return idx
-
-
 
 
     # def check_if_coordinate_filled(self,qr,hive):

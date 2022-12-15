@@ -34,7 +34,7 @@ class HiveNNet(nn.Module):
         self.bn6 = nn.BatchNorm2d(self.out_channels)
 
         self.fc1 = nn.Linear(self.out_channels*(self.board_x)*(self.board_y), self.action_size)
-        self.fc2 = nn.Linear(self.out_channels*(self.board_x)*(self.board_y)+self.action_size, 1)
+        self.fc2 = nn.Linear(self.out_channels*(self.board_x)*(self.board_y), 1)
         # self.fc_bn1 = nn.BatchNorm1d(6*self.action_size)
         #
         # self.fc_bn2 = nn.BatchNorm1d(2*self.action_size)
@@ -59,7 +59,7 @@ class HiveNNet(nn.Module):
 
         s = s.view(-1, self.out_channels*(self.board_x)*(self.board_y))
         pi = self.fc1(s)
-        s = torch.cat((s,pi),dim=1)
+        # s = torch.cat((s,pi),dim=1)
         v = self.fc2(s)                                                                         # batch_size x action_size
 
         # s = F.dropout(F.relu(self.fc_bn1(self.fc1(s))), p=self.args.dropout, training=self.training)  # batch_size x 1024

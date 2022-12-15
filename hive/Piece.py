@@ -1,6 +1,7 @@
 import torch
 
 from hive.HiveGameLogic_utils import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
+from hive.viz import draw_board
 
 
 def calculate_moves(piece_id,qr,state):

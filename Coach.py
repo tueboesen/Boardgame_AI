@@ -65,8 +65,9 @@ class Coach():
             r = self.game.getGameEnded(board)
 
             if r is not None:# != 0:
-                raise NotImplementedError("We need to set this up")
-                return [(x[0], x[2], r * ((-1) ** (x[1] != self.curPlayer))) for x in trainExamples]
+                # player = 1 if board.whites_turn else -1
+                # raise NotImplementedError("We need to set this up")
+                return [(x[0], x[1], r * ((-1) ** (board.whites_turn != x[0].whites_turn))) for x in trainExamples]
 
     def learn(self):
         """

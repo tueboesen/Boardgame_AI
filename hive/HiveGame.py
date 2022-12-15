@@ -52,7 +52,12 @@ class HiveGame(Game):
             nextBoard: board after applying action
         """
         board_next = copy.deepcopy(board)
+        # try:
         board_next.perform_action(action)
+        # except:
+        #     board.get_valid_moves()
+        #     board.perform_action(action)
+
         return board_next
 
     def getValidMoves(self, board):
@@ -108,25 +113,9 @@ class HiveGame(Game):
                          Required by MCTS for hashing.
         We make a canonical board, by assigning a value to each piece. and a multiplier for each level
 
-        Beetle = 1
-        Queen = 2
-        Grasshopper = 3
-        Spider = 4
-        Ant = 5
-
-        White is positive
-        numbers
-        Black is negative
-        numbers
-
-        level = 0 * 1
-        level = -1 * 100
-        level = -2 * 10000
-        level = -3 * 1000000
-        level = -4 * 100000000
-        level = -5 * 10000000000
         """
 
-        b = copy.deepcopy(board)
-        board_s = b.rep_str()
+        # b = copy.deepcopy(board)
+        board_s = board.string_rep()
+        # board_s = b.rep_str()
         return board_s
