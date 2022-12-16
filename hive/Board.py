@@ -8,7 +8,7 @@ import torch
 from hive.Hive import Hive
 from hive.HiveGameLogic_utils import piece_id, piece_name, piece_symbol, generate_board, bitmap_get_neighbors, remove_chokepoint_moves, remove_chokepoint_move_indices, generate_conv_board, \
     PIECES_PER_PLAYER, BoolTensor, generate_graph, find_moveable_nodes, \
-    DIRECTIONS, generate_graph_nauty
+    DIRECTIONS
 from hive.Piece import calculate_moves
 from hive.viz import draw_board
 
@@ -25,7 +25,7 @@ class Board():
         self.winner = None
         self.game_over = False
         self.npieces_per_player = len(self.hive_white)
-        self.get_valid_moves()
+        self.calculate_valid_moves()
 
     def __repr__(self) -> str:
         return f"Turn={self.turn},player={'white' if self.whites_turn else 'black'}"
@@ -82,9 +82,14 @@ class Board():
         self.bit_state = bit_state_player | bit_state_opp  # Note that bit_state is not just bool() of board_state since bitstate does not count piece not at level 0.
         self.hive_player().bit_state = bit_state_player
         self.hive_opp().bit_state = bit_state_opp
-        generate_graph(self.board_state)
+        # generate_graph(self.board_state)
 
     def get_valid_moves(self):
+        moves = self.hive_player().moves
+        return moves.view(-1).nonzero()[:,0]
+
+
+    def calculate_valid_moves(self):
         hive_player = self.hive_player()
         hive_opp = self.hive_opp()
         self.update_board_state()
@@ -104,24 +109,26 @@ class Board():
                     spawn_locations = generate_board(self.board_len,[(0,0)],bit=True) #No reason to give the whole board
 
         # Then we go through each piece and see where it can move to
+        hive_player.first_of_type[:] = True
         if hive_player.played_queen():
             g, nodes = generate_graph(self.board_state)
             moveable_node_indices = find_moveable_nodes(g)
             moveable_positions = nodes[moveable_node_indices].tolist()
             for i, (id,in_play,level,qr) in enumerate(hive_player):
-                if in_play==False:
+                if in_play==False and hive_player.first_of_type[id]:
                     hive_player.moves[i,:,:] = spawn_locations
+                    hive_player.first_of_type[id] = False
                 elif level == 0 and qr.tolist() in moveable_positions:
                     state = self.board_state if piece_symbol(id) == 'b' else self.bit_state
                     hive_player.moves[i,:,:] = calculate_moves(id,qr,state)
-
             if not hive_player.can_move():
                 self.next_player()
-                self.get_valid_moves()
+                self.calculate_valid_moves()
         elif (hive_player.in_play == True).sum() < 3:
             for i, (id,in_play,level,qr) in enumerate(hive_player):
-                if in_play==False:
+                if in_play==False and hive_player.first_of_type[id]:
                     hive_player.moves[i,:,:] = spawn_locations
+                    hive_player.first_of_type[id] = False
         else:
             hive_player.moves[0,:,:] = spawn_locations
         return hive_player.moves
@@ -134,10 +141,13 @@ class Board():
         self.whites_turn = not self.whites_turn
         if self.whites_turn:
             self.turn += 1
+
+        # self.reorder_pieces()
         self.update_board_state()
         self.fixate_board2()
+        self.update_board_state()
         self.check_winners()
-        self.get_valid_moves()
+        self.calculate_valid_moves()
 
     def check_winners(self):
         for hive in self.hives:
@@ -279,8 +289,6 @@ class Board():
         # hp.in_play[6] = True
         # ho.in_play[10] = True
         # ho.in_play[9] = True
-        self.reorder_pieces()
-        self.update_board_state()
 
 
         #we need to select 3 pieces for translation, rotation and mirroring.
@@ -409,7 +417,6 @@ class Board():
             p = range(len(strings))
             indices = sorted(p, key=lambda k: strings[k])
             self.translate_rotate_mirror(possible_permutations[indices[0]])
-        self.update_board_state()
         return
 
     def translate_rotate_mirror(self,hive_and_indices):
@@ -509,10 +516,10 @@ class Board():
         j = (action_idx // self.board_len) % self.board_len
         k = action_idx % self.board_len
 
-        a = torch.arange(11*24*24)
-        b = a.view(11,24,24)
-        assert b[i,j,k] == action_idx
-        assert hive.moves[i,j,k] == True
+        # a = torch.arange(11*24*24)
+        # b = a.view(11,24,24)
+        # assert b[i,j,k] == action_idx
+        # assert hive.moves[i,j,k] == True
         #hive.moves.view(-1).nonzero().squeeze()
         hive.move_piece(i,j,k)
         self.next_player()

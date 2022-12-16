@@ -9,7 +9,7 @@ import numpy as np
 from tqdm import tqdm
 
 from Arena import Arena
-from MCTS import MCTS
+from MCTS2 import MCTS, Node, RootParentNode
 
 log = logging.getLogger(__name__)
 
@@ -48,13 +48,21 @@ class Coach():
         trainExamples = []
         board = self.game.getInitBoard()
         episodeStep = 0
-
+        tree_node = Node(state=board,
+            obs=board.board_state,
+            reward=0,
+            done=False,
+            action=None,
+            parent=RootParentNode(env=board),
+            mcts=self.mcts,
+        )
         while True:
             episodeStep += 1
             # canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
 
-            pi = self.mcts.getActionProb(board, temp=temp)
+            # pi = self.mcts.getActionProb(board, temp=temp)
+            pi = self.mcts.compute_action(tree_node)
             sym = self.game.getSymmetries(board, pi)
             for b, p in sym:
                 trainExamples.append([b, p, None])

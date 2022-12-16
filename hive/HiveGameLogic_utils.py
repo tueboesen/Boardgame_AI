@@ -156,30 +156,23 @@ def find_moveable_nodes(g: ig.Graph) -> list[int]:
     :param g:
     :return: moveable node indices
     """
-    # edges = torch.as_tensor(g.get_edgelist())
     nodes = g.vcount()
-    # bridges = g.bridges()
-    # degrees = g.degree()
-    # bridge_nodes = edges[bridges].unique().tolist()
     articulation_points = g.articulation_points()
-    # leaf_nodes = [i for i, degree in enumerate(degrees) if degree == 1]
     moveable_node_indices = set(range(nodes)).difference(articulation_points)
-    # moveable_node_indices.update(leaf_nodes)
     return list(moveable_node_indices)
 
 
-def axial_distance(hexes_pair: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
+def axial_distance_fast(x: torch.Tensor) -> torch.Tensor:
     """
     Finds the distance between two hexes.
     See the distance function for axial grids: https://www.redblobgames.com/grids/hexagons/
     :param hexes_pair:
     :return:
     """
-    dists = []
-    for a, b in hexes_pair:
-        dist = (torch.abs(a[0] - b[0]) + torch.abs(a[0] + a[1] - b[0] - b[1]) + torch.abs(a[1] - b[1])) / 2
-        dists.append(dist)
-    dists = torch.as_tensor(dists)
+    if x.shape[0] > 0:
+        dists = (torch.abs(x[:,0,0]-x[:,1,0]) + torch.abs(x[:,0,0] + x[:,0,1] - x[:,1,0] - x[:,1,1]) + torch.abs(x[:,0,1] - x[:,1,1])) / 2
+    else:
+        dists = torch.tensor([])
     return dists
 
 
@@ -201,8 +194,12 @@ def generate_graph(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
 
     nodes = len(node_indices)
     # node_indices_axial = self.offset_to_axial(node_indices)
-    node_pairs = list(itertools.combinations(node_indices, 2))
-    distances = axial_distance(node_pairs)
+    # node_pairs = list(itertools.combinations(node_indices, 2))
+    indices = torch.combinations(torch.arange(nodes),2)
+    node_pairs = node_indices[indices]
+
+    # distances = axial_distance(node_pairs)
+    distances = axial_distance_fast(node_pairs)
     mask = distances < 1.1
     node_combinations = torch.combinations(torch.arange(nodes), 2)
     edges = node_combinations[mask]
@@ -218,52 +215,3 @@ def generate_graph(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
 
     return g, node_indices
 
-
-def generate_graph_nauty(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
-    """
-    Generates a graph given the board_state.
-
-    :param bitboard_state:
-    :return: Graph of bitboard_state, and the associated node position indices
-    """
-    bs = board_state.clone()
-    node_indices = bs.nonzero()
-    mask = bs != 0
-    if mask.any():
-        bs[mask] -= 1
-        node_indices2 = bs.nonzero()
-        if len(node_indices2)>0:
-            node_indices = torch.cat((node_indices,node_indices2))
-
-    nodes = len(node_indices)
-
-    # node_indices_axial = self.offset_to_axial(node_indices)
-    node_pairs = list(itertools.combinations(node_indices, 2))
-    distances = axial_distance(node_pairs)
-    mask = distances < 1.1
-    node_combinations = torch.combinations(torch.arange(nodes), 2)
-    edges = node_combinations[mask]
-    g = ig.Graph(nodes, edges.tolist())
-    # g.get_automorphisms_vf2()
-
-    n_nodes = 4
-    edges = {0: [1, 2, 3],
-             1: [0, 2, 3],
-             2: [0],
-             3: [0, 1]}
-    colors = [set((0, 1)), set((2, 3))]
-    G = pynauty.Graph(nodes, adjacency_dict=edges, vertex_coloring=colors)
-
-    G = pynauty.Graph(number_of_vertices=5, directed=False,
-                      adjacency_dict={
-                          0: [1, 2, 3],
-                          2: [1, 3, 4],
-                          4: [3],
-                      },
-                      vertex_coloring=[
-                      ],
-                      )
-    # Call pynauty.autgrp(G) to get the automorphism of the graph, which can be used for string labelling.
-    # Call pynauty.canon_label(G) to get the canonical labelling of vertices.
-
-    return g, node_indices

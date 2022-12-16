@@ -81,7 +81,7 @@ class NNetWrapper(NeuralNet):
                 total_loss.backward()
                 optimizer.step()
 
-    def predict(self, board):
+    def predict(self, board_state_nn):
         """
         board: np array with board
         """
@@ -89,13 +89,14 @@ class NNetWrapper(NeuralNet):
         start = time.time()
 
         # preparing input
-        if args.cuda: board = board.contiguous().cuda()
+        if args.cuda: board_state_nn = board_state_nn.contiguous().cuda()
         self.nnet.eval()
         with torch.no_grad():
-            pi, v = self.nnet(board)
+            pi, v = self.nnet(board_state_nn)
 
         # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
-        return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
+        return torch.exp(pi)[0], v[0]
+        # return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
     def loss_pi(self, targets, outputs):
         return -torch.sum(targets * outputs) / targets.size()[0]

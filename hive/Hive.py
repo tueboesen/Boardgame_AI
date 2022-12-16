@@ -27,6 +27,7 @@ class Hive:
         for i, piece in enumerate(PIECES_PER_PLAYER):
             self.types[i] = piece_id(piece)
 
+        self.first_of_type = torch.ones(len(torch.unique(self.types)),dtype=torch.bool)
         self.white = white
         return
 

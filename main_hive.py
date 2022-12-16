@@ -10,7 +10,7 @@ from hive.HiveGame import HiveGame
 from hive.nn.NNet import NNetWrapper
 from utils import *
 import sys
-sys.setrecursionlimit(2500)
+sys.setrecursionlimit(10000)
 
 log = logging.getLogger(__name__)
 
