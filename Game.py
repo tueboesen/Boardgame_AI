@@ -33,6 +33,14 @@ class Game():
         """
         pass
 
+    # def step(self, action):
+    #     pass
+    #
+    # def set_state(self,state):
+    #     pass
+    # def get_state(self):
+    #     pass
+
     def getNextState(self, board, player, action):
         """
         Input:
@@ -68,7 +76,7 @@ class Game():
         Returns:
             r: 0 if game has not ended. 1 if player won, -1 if player lost,
                small non-zero value for draw.
-               
+
         """
         pass
 

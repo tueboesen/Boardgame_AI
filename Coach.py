@@ -6,10 +6,12 @@ from pickle import Pickler, Unpickler
 from random import shuffle
 
 import numpy as np
+import torch
 from tqdm import tqdm
 
 from Arena import Arena
-from MCTS2 import MCTS, Node, RootParentNode
+from MCTS import MCTS
+from hive.viz import draw_board
 
 log = logging.getLogger(__name__)
 
@@ -48,27 +50,20 @@ class Coach():
         trainExamples = []
         board = self.game.getInitBoard()
         episodeStep = 0
-        tree_node = Node(state=board,
-            obs=board.board_state,
-            reward=0,
-            done=False,
-            action=None,
-            parent=RootParentNode(env=board),
-            mcts=self.mcts,
-        )
+
         while True:
             episodeStep += 1
+
             # canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
 
-            # pi = self.mcts.getActionProb(board, temp=temp)
-            pi = self.mcts.compute_action(tree_node)
-            sym = self.game.getSymmetries(board, pi)
-            for b, p in sym:
-                trainExamples.append([b, p, None])
+            pi = self.mcts.getActionProb(board, temp=temp)
+            move_prob = torch.zeros(self.game.getActionSize(),dtype=torch.float)
+            move_prob[board.get_valid_moves()] = torch.tensor(pi,dtype=torch.float)
+            trainExamples.append([board, move_prob, None])
 
-            action = np.random.choice(len(pi), p=pi)
-            board = self.game.getNextState(board, action)
+            action_idx = np.random.choice(len(pi), p=pi)
+            board = self.game.getNextState_from_possible_actions(board, action_idx)
 
             r = self.game.getGameEnded(board)
 
@@ -92,10 +87,13 @@ class Coach():
             # examples of the iteration
             if not self.skipFirstSelfPlay or i > 1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
-
+                # c = 0
                 for _ in tqdm(range(self.args.numEps), desc="Self Play"):
                     self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
                     iterationTrainExamples += self.executeEpisode()
+                    # c += 1
+                    # if c>2:
+                    #     quit()
 
                 # save the iteration examples to the history 
                 self.trainExamplesHistory.append(iterationTrainExamples)

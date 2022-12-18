@@ -84,11 +84,6 @@ class Board():
         self.hive_opp().bit_state = bit_state_opp
         # generate_graph(self.board_state)
 
-    def get_valid_moves(self):
-        moves = self.hive_player().moves
-        return moves.view(-1).nonzero()[:,0]
-
-
     def calculate_valid_moves(self):
         hive_player = self.hive_player()
         hive_opp = self.hive_opp()
@@ -164,7 +159,7 @@ class Board():
                 if surrounded:
                     hive.lost = True
                     self.game_over = True
-        if self.turn >= 500:
+        if self.turn >= 1000:
             self.game_over = True
         if self.game_over:
             if self.hive_white.lost ^ self.hive_black.lost:
@@ -173,7 +168,14 @@ class Board():
                 self.winner = 'Draw'
             return
 
-
+    def reward(self):
+        if self.winner == 'White':
+            reward = 1
+        elif self.winner == 'Black':
+            reward = -1
+        else:
+            reward = 0
+        return reward
 
     def check_if_coordinate_filled(self,qr,hive):
         m1 = hive.qr[:,0] == qr[0]
@@ -477,8 +479,45 @@ class Board():
         hives = [self.hive_player(), self.hive_opp()]
         string = ""
         for hive in hives:
-            string = string + str(hive.qr[hive.in_play].view(-1).tolist()) + str(hive.types[hive.in_play].tolist())
+            string = string + str(hive.qr[hive.in_play].view(-1).tolist()) + str(hive.types[hive.in_play].tolist()) + str(hive.level[hive.in_play].tolist())
         return string
+
+    def get_state(self):
+        state = [self.turn,self.whites_turn,self.game_over,self.winner]
+        for hive in self.hives:
+            state.append(hive.qr)
+            state.append(hive.in_play)
+            state.append(hive.level)
+            state.append(hive.pieces_under)
+        state.append(self.get_valid_moves())
+        return state
+
+    def set_state(self,state):
+        self.turn = state[0]
+        self.whites_turn = state[1]
+        self.game_over = state[2]
+        self.winner = state[3]
+        c = 3
+        for hive in self.hives:
+            hive.qr = state[c+1]
+            hive.in_play = state[c+2]
+            hive.level = state[c+3]
+            hive.pieces_under = state[c+4]
+            c += 4
+        self.set_valid_moves(state[c+1])
+
+
+
+    def get_valid_moves(self):
+        moves = self.hive_player().moves
+        return moves.view(-1).nonzero()[:,0]
+
+    def set_valid_moves(self,move_idx):
+        moves = self.hive_player().moves
+        moves[:,:,:] = False
+        moves1d = moves.view(-1)
+        moves1d[move_idx] = True
+
 
     def generate_int_form(self):
         """
@@ -516,10 +555,10 @@ class Board():
         j = (action_idx // self.board_len) % self.board_len
         k = action_idx % self.board_len
 
-        # a = torch.arange(11*24*24)
-        # b = a.view(11,24,24)
-        # assert b[i,j,k] == action_idx
-        # assert hive.moves[i,j,k] == True
+        a = torch.arange(11*24*24)
+        b = a.view(11,24,24)
+        assert b[i,j,k] == action_idx
+        assert hive.moves[i,j,k] == True
         #hive.moves.view(-1).nonzero().squeeze()
         hive.move_piece(i,j,k)
         self.next_player()

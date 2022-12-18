@@ -60,6 +60,12 @@ class HiveGame(Game):
 
         return board_next
 
+    def getNextState_from_possible_actions(self,board,idx):
+        moves = self.getValidMoves(board)
+        action = moves[idx]
+        board_next = self.getNextState(board,action)
+        return board_next
+
     def getValidMoves(self, board):
         """
         Input:
@@ -83,14 +89,12 @@ class HiveGame(Game):
         win = board.winner
         if win is None:
             return None
+        elif win == 'White': #White won
+            return 1
+        elif win == 'Black': #Black won
+            return -1
         else:
-            quit()
-        # elif win == 'White': #White won
-        #     return 1
-        # elif win == 'Black': #Black won
-        #     return -1
-        # else:
-        #     return 0 #Draw
+            return 0 #Draw
 
 
     def getSymmetries(self, board, pi):

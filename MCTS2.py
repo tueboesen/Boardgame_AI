@@ -11,13 +11,13 @@ import numpy as np
 
 class Node:
     def __init__(self, action, obs, done, reward, state, mcts, parent=None):
-        self.board = parent.env
+        self.game = parent.game
         self.action = action  # Action used to go to this state
         self.is_expanded = False
         self.parent = parent
         self.children = {}
 
-        self.valid_actions = self.board.get_valid_moves()
+        self.valid_actions = self.game.board.get_valid_moves()
         self.number_of_actions = len(self.valid_actions)
         self.child_total_value = torch.zeros([self.number_of_actions])  # Q
         self.child_priors = torch.empty([self.number_of_actions])  # P
@@ -27,7 +27,7 @@ class Node:
         self.reward = reward
         self.done = done
         self.state = state
-        self.obs = self.board.rep_nn()
+        self.obs = self.game.board.rep_nn()
 
         self.mcts = mcts
 
@@ -67,7 +67,8 @@ class Node:
         :return: action
         """
         child_score = self.child_Q() + self.mcts.c_puct * self.child_U()
-        return torch.argmax(child_score)
+        idx = torch.argmax(child_score)
+        return self.valid_actions[idx]
 
     def select(self):
         current_node = self
@@ -82,9 +83,9 @@ class Node:
 
     def get_child(self, action):
         if action not in self.children:
-            self.env.set_state(self.state)
-            obs, reward, done, _ = self.env.step(action)
-            next_state = self.env.get_state()
+            self.game.set_state(self.state)
+            obs, reward, done, _ = self.game.step(action)
+            next_state = self.game.get_state()
             self.children[action] = Node(
                 state=next_state,
                 action=action,
@@ -105,11 +106,11 @@ class Node:
 
 
 class RootParentNode:
-    def __init__(self, env):
+    def __init__(self, game):
         self.parent = None
         self.child_total_value = collections.defaultdict(float)
         self.child_number_visits = collections.defaultdict(float)
-        self.env = env
+        self.game = game
 
 
 mcts_config = {

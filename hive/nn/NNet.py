@@ -17,8 +17,8 @@ from .HiveNNet import HiveNNet as onnet
 args = dotdict({
     'lr': 0.001,
     'dropout': 0.3,
-    'epochs': 10,
-    'batch_size': 1,
+    'epochs': 100,
+    'batch_size': 64,
     'cuda': torch.cuda.is_available(),
     'num_channels': 512,
 })
@@ -58,7 +58,7 @@ class NNetWrapper(NeuralNet):
                     boards_nn.append(board.rep_nn())
                 boards_nn = torch.stack(boards_nn,dim=0)
                 # boards = torch.FloatTensor(np.array(boards).astype(np.float64))
-                target_pis = torch.FloatTensor(np.array(pis))
+                target_pis = torch.stack(pis,dim=0)
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # predict
@@ -95,7 +95,7 @@ class NNetWrapper(NeuralNet):
             pi, v = self.nnet(board_state_nn)
 
         # print('PREDICTION TIME TAKEN : {0:03f}'.format(time.time()-start))
-        return torch.exp(pi)[0], v[0]
+        return torch.exp(pi)[0], v[0].item()
         # return torch.exp(pi).data.cpu().numpy()[0], v.data.cpu().numpy()[0]
 
     def loss_pi(self, targets, outputs):

@@ -50,11 +50,11 @@ class Arena():
 
             valids = self.game.getValidMoves(board)
 
-            if valids[action] == 0:
-                log.error(f'Action {action} is not valid!')
-                log.debug(f'valids = {valids}')
-                assert valids[action] > 0
-            board = self.game.getNextState(board, action)
+            # if valids[action] == 0:
+            #     log.error(f'Action {action} is not valid!')
+            #     log.debug(f'valids = {valids}')
+            #     assert valids[action] > 0
+            board = self.game.getNextState(board, valids[action])
         if verbose:
             assert self.display
             print(f"Game over: Turn {it}, Result {self.game.getGameEnded(board)}")
