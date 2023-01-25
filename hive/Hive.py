@@ -78,6 +78,8 @@ class Hive:
         self.in_play[idx] = True
 
 
+
+
     # def check_if_coordinate_filled(self,qr,hive):
     #     m1 = hive.qr[:,0] == qr[0]
     #     m2 = hive.qr[:,1] == qr[1]

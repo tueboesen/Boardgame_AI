@@ -10,7 +10,8 @@ import torch
 from tqdm import tqdm
 
 from Arena import Arena
-from MCTS import MCTS
+from MCTS2 import MCTS, Node, RootParentNode
+# from MCTS import MCTS
 from hive.viz import draw_board
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class Coach():
         """
         trainExamples = []
         board = self.game.getInitBoard()
+        node = Node(self.mcts, action=None, done=False, reward=0, board=board, parent=RootParentNode(self.game))
         episodeStep = 0
 
         while True:
@@ -57,19 +59,31 @@ class Coach():
             # canonicalBoard = self.game.getCanonicalForm(board, self.curPlayer)
             temp = int(episodeStep < self.args.tempThreshold)
 
-            pi = self.mcts.getActionProb(board, temp=temp)
-            move_prob = torch.zeros(self.game.getActionSize(),dtype=torch.float)
-            move_prob[board.get_valid_moves()] = torch.tensor(pi,dtype=torch.float)
-            trainExamples.append([board, move_prob, None])
+            # pi = self.mcts.getActionProb(board, temp=temp)
+            move_prob, action, node_next = self.mcts.compute_action(node)
 
-            action_idx = np.random.choice(len(pi), p=pi)
-            board = self.game.getNextState_from_possible_actions(board, action_idx)
+            # move_prob = torch.zeros(self.game.getActionSize(),dtype=torch.float)
+            # move_prob[board.get_valid_moves()] = torch.tensor(pi,dtype=torch.float)
+            trainExamples.append([node.board, move_prob, None])
 
-            r = self.game.getGameEnded(board)
+            # action_idx = np.random.choice(len(pi), p=pi)
+            # board = self.game.getNextState_from_possible_actions(board, action_idx)
+            node = node_next
+            board = node.board
 
-            if r is not None:# != 0:
-                # player = 1 if board.whites_turn else -1
-                # raise NotImplementedError("We need to set this up")
+
+            if board.game_over:# != 0:
+                r = board.reward()
+                # nmoves = 0
+                # nvisits = 0
+                # for key,val in self.mcts.Vs.items():
+                #     nmoves += len(val)
+                # for _,val in self.mcts.Ns.items():
+                #     nvisits += val+1
+                # average_moves = nmoves/len(self.mcts.Vs)
+                # print(f"Turn={board.turn}, Winner={board.winner}, average_moves={average_moves:2.2f}, visited_board_states={len(self.mcts.Vs)}, average_board_state_visits={nvisits/len(self.mcts.Ns):2.2f}")
+                # # player = 1 if board.whites_turn else -1
+                # # raise NotImplementedError("We need to set this up")
                 return [(x[0], x[1], r * ((-1) ** (board.whites_turn != x[0].whites_turn))) for x in trainExamples]
 
     def learn(self):
@@ -85,14 +99,14 @@ class Coach():
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
             # examples of the iteration
+            self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
             if not self.skipFirstSelfPlay or i > 1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
-                # c = 0
+                c = 0
                 for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-                    self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
                     iterationTrainExamples += self.executeEpisode()
                     # c += 1
-                    # if c>2:
+                    # if c>1:
                     #     quit()
 
                 # save the iteration examples to the history 
@@ -115,10 +129,10 @@ class Coach():
             # training new network, keeping a copy of the old one
             self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            pmcts = MCTS(self.game, self.pnet, self.args)
+            pmcts = MCTS(self.game, self.pnet, self.args) # TODO this should be a copy of the MCTS just used I think
 
             self.nnet.train(trainExamples)
-            nmcts = MCTS(self.game, self.nnet, self.args)
+            nmcts = MCTS(self.game, self.nnet, self.args) # TODO this should perhaps be a new MCTS? or maybe still a copy of the previous?
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
             arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),

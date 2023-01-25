@@ -116,6 +116,8 @@ class MCTS():
         #     draw_board(board.board_state)
         # if board.turn > 1511:
         #     print("here")
+        if board.turn == 30:
+            draw_board(board)
 
         v = self.search(next_s)
         if board.whites_turn == next_s.whites_turn:

@@ -4,7 +4,6 @@ import typing
 import torch
 import igraph as ig
 
-from hive.viz import draw_board
 
 PieceType = int
 BoolTensor = torch.BoolTensor
@@ -15,7 +14,7 @@ PIECE_NAMES = ["queen", "spider", "beetle", "grasshopper", "ant"]
 
 PIECES_PER_PLAYER = ["q", 's', 's', 'b', 'b', 'g', 'g', 'g', 'a', 'a', 'a']
 
-DIRECTIONS = [(-1, 0), (1, 0), (0, 1), (0, -1), (1, -1), (-1, 1)]
+DIRECTIONS = torch.tensor([(-1, 0), (1, 0), (0, 1), (0, -1), (1, -1), (-1, 1)])
 
 
 # PIECES_PER_PLAYER = ["q", 'b', 'b', 'a', 'a']
@@ -215,3 +214,9 @@ def generate_graph(board_state: torch.Tensor) -> (ig.Graph, torch.Tensor):
 
     return g, node_indices
 
+def axial_to_cube_ext(qr):
+    q = qr[...,0]
+    r = qr[...,1]
+    s = -q-r
+    t = torch.ones_like(q)
+    return torch.stack((q,r,s,t),dim=-1)

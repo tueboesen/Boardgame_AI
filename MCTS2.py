@@ -3,6 +3,7 @@ Mcts implementation modified from
 https://github.com/brilee/python_uct/blob/master/numpy_impl.py
 """
 import collections
+import copy
 import math
 
 import torch
@@ -10,14 +11,17 @@ import numpy as np
 
 
 class Node:
-    def __init__(self, action, obs, done, reward, state, mcts, parent=None):
-        self.game = parent.game
-        self.action = action  # Action used to go to this state
+    def __init__(self, mcts, action, done, reward, board, parent=None):
+        # self.game = parent.game
+        # self.game = game
+        self.board = board
+        self.action = action  # Action used to go to this state (0-5)
+        self.board_action = action # The corresponding action on the board (47,566,1570,3004,6043)
         self.is_expanded = False
         self.parent = parent
         self.children = {}
 
-        self.valid_actions = self.game.board.get_valid_moves()
+        self.valid_actions = self.board.get_valid_moves()
         self.number_of_actions = len(self.valid_actions)
         self.child_total_value = torch.zeros([self.number_of_actions])  # Q
         self.child_priors = torch.empty([self.number_of_actions])  # P
@@ -26,8 +30,7 @@ class Node:
 
         self.reward = reward
         self.done = done
-        self.state = state
-        self.obs = self.game.board.rep_nn()
+        self.obs = self.board.rep_nn()
 
         self.mcts = mcts
 
@@ -57,9 +60,7 @@ class Node:
 
     def child_U(self):
         return (
-            math.sqrt(self.number_visits)
-            * self.child_priors
-            / (1 + self.child_number_visits)
+            math.sqrt(self.number_visits)* self.child_priors/ (1 + self.child_number_visits)
         )
 
     def best_action(self):
@@ -68,7 +69,7 @@ class Node:
         """
         child_score = self.child_Q() + self.mcts.c_puct * self.child_U()
         idx = torch.argmax(child_score)
-        return self.valid_actions[idx]
+        return idx
 
     def select(self):
         current_node = self
@@ -79,23 +80,25 @@ class Node:
 
     def expand(self, child_priors):
         self.is_expanded = True
+        # self.action_idx = action_idx
         self.child_priors = child_priors.cpu()
 
     def get_child(self, action):
         if action not in self.children:
-            self.game.set_state(self.state)
-            obs, reward, done, _ = self.game.step(action)
-            next_state = self.game.get_state()
-            self.children[action] = Node(
-                state=next_state,
-                action=action,
-                parent=self,
-                reward=reward,
-                done=done,
-                obs=obs,
+            board_next = copy.deepcopy(self.board)
+            board_action = self.valid_actions[action]
+            board_next.perform_action(board_action)
+
+            self.children[action.item()] = Node(
                 mcts=self.mcts,
+                action=action,
+                done=board_next.game_over,
+                reward=board_next.reward(),
+                board=board_next,
+                parent=self,
             )
-        return self.children[action]
+            #mcts, action, done, reward, board, parent=None
+        return self.children[action.item()]
 
     def backup(self, value):
         current = self
@@ -154,16 +157,17 @@ class MCTS:
 
         # Tree policy target (TPT)
         tree_policy = node.child_number_visits / node.number_visits
-        tree_policy = tree_policy / np.max(
-            tree_policy
-        )  # to avoid overflows when computing softmax
-        tree_policy = np.power(tree_policy, self.temperature)
-        tree_policy = tree_policy / np.sum(tree_policy)
+        tree_policy = torch.nn.functional.softmax(tree_policy/self.temperature,dim=0)
+        # tree_policy = tree_policy / torch.max(tree_policy)  # to avoid overflows when computing softmax
+        # tree_policy = np.power(tree_policy, self.temperature)
+        # tree_policy = tree_policy / torch.sum(tree_policy)
         if self.exploit:
             # if exploit then choose action that has the maximum
             # tree policy probability
-            action = np.argmax(tree_policy)
+            action = torch.argmax(tree_policy)
         else:
             # otherwise sample an action according to tree policy probabilities
-            action = np.random.choice(np.arange(node.action_space_size), p=tree_policy)
+            action = np.random.choice(np.arange(len(node.valid_actions)), p=tree_policy.numpy())
+        if action not in node.children:
+            node.get_child(action)
         return tree_policy, action, node.children[action]

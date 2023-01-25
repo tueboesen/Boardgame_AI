@@ -14,10 +14,22 @@ class HiveGame(Game):
     player -1 = Black
     """
 
-    def __init__(self):
+    def __init__(self,display=True):
         self.board = Board()
         self.board_size = self.board.board_size
         self.action_size = self.board.npieces_per_player * self.board.board_len * self.board.board_len
+
+
+
+    @property
+    def summary(self):
+        return f"Turn: {self.board.turn},   Players turn: {'White' if self.board.whites_turn else 'Black'}"
+
+    @property
+    def current_player(self):
+        p = 0 if self.board.whites_turn else 1
+        return p
+
 
     def getInitBoard(self):
         """
@@ -42,7 +54,7 @@ class HiveGame(Game):
         """
         return self.action_size
 
-    def getNextState(self, board, action):
+    def getNextState(self, action):
         """
         Input:
             board: current board
@@ -51,14 +63,12 @@ class HiveGame(Game):
         Returns:
             nextBoard: board after applying action
         """
-        board_next = copy.deepcopy(board)
-        # try:
-        board_next.perform_action(action)
+        # board_next = copy.deepcopy(self.board)
+        self.board.perform_action(action)
         # except:
         #     board.get_valid_moves()
         #     board.perform_action(action)
-
-        return board_next
+        return
 
     def getNextState_from_possible_actions(self,board,idx):
         moves = self.getValidMoves(board)
@@ -76,16 +86,18 @@ class HiveGame(Game):
                         moves that are valid from the current board and player,
                         0 for invalid moves
         """
-        moves = board.hive_player().moves
+        moves = board.hive_player.moves
         return moves.view(-1).nonzero()[:,0]
         # return moves.view(-1).numpy()
 
-    def getGameEnded(self, board):
+    def getGameEnded(self, board=None):
         """
         Input:
             board: current board
 
         """
+        if board is None:
+            board = self.board
         win = board.winner
         if win is None:
             return None

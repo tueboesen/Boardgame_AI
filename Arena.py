@@ -1,6 +1,10 @@
 import logging
+import sys
 
 from tqdm import tqdm
+import os
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
+import pygame
 
 log = logging.getLogger(__name__)
 
@@ -10,7 +14,7 @@ class Arena():
     An Arena class where any 2 agents can be pit against each other.
     """
 
-    def __init__(self, player1, player2, game, display=None):
+    def __init__(self, players, game, display=None):
         """
         Input:
             player 1,2: two functions that takes board as input, return action
@@ -22,10 +26,24 @@ class Arena():
         see othello/OthelloPlayers.py for an example. See pit.py for pitting
         human players/other baselines with each other.
         """
-        self.player1 = player1
-        self.player2 = player2
+        self.players = players
         self.game = game
         self.display = display
+        self.board = game.board
+    def single_game(self):
+        if self.display is not None:
+            pygame.display.update()
+
+        while self.game.getGameEnded() is None:
+            player = self.players[self.game.current_player]
+            action = player.determine_action()
+            self.game.getNextState(action)
+            if self.display is not None:
+                self.display.update_board()
+                self.display()
+
+        print("game over!")
+
 
     def playGame(self, verbose=False):
         """

@@ -1,7 +1,7 @@
 import torch
 
-from hive.HiveGameLogic_utils import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS, axial_distance_fast
-from hive.viz import draw_board
+from players.HiveGameLogic_utils import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
+from players.viz import draw_board
 
 
 def calculate_moves(piece_id,qr,state):
@@ -51,7 +51,7 @@ def _moves_grasshopper(qr,bitboard_all: BoolTensor) -> BoolTensor:
     :param bitboard_all:
     :return:
     """
-    directions = DIRECTIONS
+    directions = torch.as_tensor(DIRECTIONS)
     moves = generate_board(bitboard_all.shape[0])
     for i in range(directions.shape[0]):
         direction = directions[i]
@@ -96,7 +96,7 @@ def _move_spider_one(bitboard_without_spider: BoolTensor, spider_hist: list[tupl
     move_indices = []
     nn_origo = []
     for i in range(6):
-        direction = DIRECTIONS[i]
+        direction = torch.as_tensor(DIRECTIONS[i])
         idx = (torch.as_tensor(spider_pos) + direction).tolist()
         if bitboard_without_spider[idx[0], idx[1]]:
             nn_origo.append((idx[0], idx[1]))
@@ -105,7 +105,7 @@ def _move_spider_one(bitboard_without_spider: BoolTensor, spider_hist: list[tupl
     for move in list(move_indices):
         nn_move = []
         for i in range(6):
-            direction = DIRECTIONS[i]
+            direction = torch.as_tensor(DIRECTIONS[i])
             idx = (torch.as_tensor(move) + direction).tolist()
             if bitboard_without_spider[idx[0], idx[1]]:
                 nn_move.append((idx[0], idx[1]))
@@ -123,87 +123,25 @@ def _move_spider_one(bitboard_without_spider: BoolTensor, spider_hist: list[tupl
             spider_hist_all.append(spider_hist_new)
     return spider_hist_all
 
-def _moves_ant(qr, bitboard_all: BoolTensor,use_fast=True) -> BoolTensor:
+def _moves_ant(qr, bitboard_all: BoolTensor) -> BoolTensor:
     """
     The ant can move from its position to any other position around the hive (restricted by the 'freedom to move' and 'one hive' rules).
     :param bitboard_all:
     :return:
     """
     moves = generate_board(bitboard_all.shape[0])
-    if use_fast:
-        board = bitboard_all.clone()
-        board[qr[0], qr[1]] = 0
-        board_nn = bitmap_get_neighbors(board)
-        allowed_move_indices = _moves_ant_fast(board, board_nn, qr)
-        moves[allowed_move_indices[:,0],allowed_move_indices[:,1]] = 1
-    else:
-        board = bitboard_all.clone()
-        board[qr[0], qr[1]] = 0
-        board_nn = bitmap_get_neighbors(board)
-        move_idx_set, _ = _move_ant_one(board, board_nn, qr, set(), set())
-        if move_idx_set:
-            if (qr[0].item(),qr[1].item()) not in move_idx_set:
-                move_idx_set, _ = _move_ant_one(board, board_nn, qr, set(), set())
-            move_idx_set.remove((qr[0].item(),qr[1].item()))
-        move_idx_list = list(move_idx_set)
-        for move_idx in move_idx_list:
-            moves[move_idx[0], move_idx[1]] = 1
+    board = bitboard_all.clone()
+    board[qr[0], qr[1]] = 0
+    board_nn = bitmap_get_neighbors(board)
+    move_idx_set, _ = _move_ant_one(board, board_nn, qr, set(), set())
+    if move_idx_set:
+        if (qr[0].item(),qr[1].item()) not in move_idx_set:
+            move_idx_set, _ = _move_ant_one(board, board_nn, qr, set(), set())
+        move_idx_set.remove((qr[0].item(),qr[1].item()))
+    move_idx_list = list(move_idx_set)
+    for move_idx in move_idx_list:
+        moves[move_idx[0], move_idx[1]] = 1
     return moves
-
-def _moves_ant_fast(bitboard_without_ant: BoolTensor, bitboard_without_ant_nn: BoolTensor, position: tuple[int, int]):
-    """
-    The strategy here is to generate the nn indices of potential move locations and then create a 1 step graph of those.
-    Then start from ant origo and traverse to all neighbouring nn locations one at a time recursively, and for each one determine whether it is allowed or not
-    """
-    bitboard_pos_moves = bitboard_without_ant_nn ^ bitboard_without_ant
-    # bitboard_pos_moves[position[0],position[1]] = 1
-    p_idx = bitboard_without_ant.nonzero()
-    nn_idx = bitboard_pos_moves.nonzero()
-    nodes_nn = len(nn_idx)
-    nodes_p = len(p_idx)
-    indices_nn_p = torch.stack([torch.arange(nodes_nn).repeat(nodes_p),torch.arange(nodes_p).repeat_interleave(nodes_nn)],dim=1)
-    indices = torch.combinations(torch.arange(nodes_nn), 2)
-    node_pairs_nn_p = torch.stack((nn_idx[indices_nn_p[:,0]],p_idx[indices_nn_p[:,1]]),dim=1)
-    node_pairs = nn_idx[indices]
-    distances = axial_distance_fast(node_pairs)
-    distances_nn_p = axial_distance_fast(node_pairs_nn_p)
-    mask = distances < 1.1
-    mask_nn_p = distances_nn_p < 1.1
-    # node_combinations = torch.combinations(torch.arange(nodes_nn), 2)
-    edges = indices[mask]
-    edges_nn_p = indices_nn_p[mask_nn_p]
-    # node_ant =  position == nn_idx
-    node_ant = (position == nn_idx).all(dim=1).nonzero().squeeze().item()
-    prohibited_nodes = set([node_ant])
-    allowed_nodes = set()
-    nodes_checked = set([node_ant])
-    new_ant_nodes = []
-    while True:
-        # node_ant = (position == nn_idx).all(dim=1).nonzero().squeeze()
-        edges_to_check = (edges == node_ant).any(dim=1).nonzero()
-        nodes_to_check = edges[edges_to_check].view(-1).unique()
-
-        p2 = edges_nn_p[edges_nn_p[:, 0] == node_ant, 1]
-        s2 = set(p2.tolist())
-        for node in nodes_to_check:
-            node_number = node.item()
-            if node.item() in nodes_checked:
-                continue
-            p1 = edges_nn_p[edges_nn_p[:,0] == node,1]
-            p_intersect = s2.intersection(p1.tolist())
-            if len(p_intersect) >= 2:
-                prohibited_nodes.add(node_number)
-            else:
-                allowed_nodes.add(node_number)
-                new_ant_nodes.append(node_number)
-            nodes_checked.add(node_number)
-        if len(new_ant_nodes) > 0:
-            node_ant = new_ant_nodes.pop()
-        else:
-            break
-    allowed_positions = nn_idx[list(allowed_nodes)]
-    return allowed_positions
-
 
 def _move_ant_one(bitboard_without_ant: BoolTensor, bitboard_without_ant_nn: BoolTensor, position: tuple[int, int], move_set: set[tuple[int, int]], prohibited_move_set: set[tuple[int, int]]):
     """
@@ -219,17 +157,12 @@ def _move_ant_one(bitboard_without_ant: BoolTensor, bitboard_without_ant_nn: Boo
     """
     move_indices = []
     move_hist_all = move_set.union(prohibited_move_set)
-    # nn = DIRECTIONS + position
-    # m1 = bitboard_without_ant[nn[:,0],nn[:,1]]
-    # m2 = bitboard_without_ant_nn[nn[:,0],nn[:,1]]
-    # nn.tolist() in move_hist_all
-    pos = torch.tensor(position)
     for i in range(6):
-        direction = DIRECTIONS[i]
-        idx = pos + direction
+        direction = torch.as_tensor(DIRECTIONS[i])
+        idx = (torch.as_tensor(position) + direction).tolist()
         if not bitboard_without_ant[idx[0], idx[1]] \
                 and bitboard_without_ant_nn[idx[0], idx[1]] \
-                and (idx[0].item(), idx[1].item()) not in move_hist_all:  # The position is open and is neighbor to another piece and not part of the move history
+                and (idx[0], idx[1]) not in move_hist_all:  # The position is open and is neighbor to another piece and not part of the move history
             move_indices.append((idx[0], idx[1]))
     move_indices, removed_indices = remove_chokepoint_move_indices(move_indices, position[0], position[1], bitboard_without_ant)
     prohibited_move_set.update(removed_indices)
