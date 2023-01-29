@@ -56,9 +56,9 @@ class Board():
         else:
             hive.qr[hive.in_play] = self.transform.forward(hive.qr[hive.in_play], A)
 
-    def rep_canon(self,hive):
-        qr_canon = self.transform.forward(hive.qr)
-        return qr_canon
+    # def rep_canon(self,hive):
+    #     qr_canon = self.transform.forward(hive.qr)
+    #     return qr_canon
 
     def rep_nn(self):
         """
@@ -76,12 +76,6 @@ class Board():
                 bbs.append(bb)
         bbs = torch.stack(bbs)
         return bbs
-
-    # def rep_str(self):
-    #     self.fixate_board2()
-    #     board_int = self.generate_int_form()
-    #     board_str = np.array2string(board_int.view(-1).numpy(), max_line_width=9999)[1:-1]
-    #     return board_str
 
     def update_board_state(self):
         hive_player = self.hive_player
@@ -196,10 +190,6 @@ class Board():
         m2 = hive.qr[:,1] == qr[1]
         m = m1 & m2
         return m.any()
-
-
-
-
 
     def shift_pieces_from_edges(self,add_to_transform=True):
         """
@@ -639,8 +629,6 @@ class Board():
             hive.qr_viz = hive.qr.clone()
             hive.qr_viz[hive.in_play] = self.transform.inverse(hive.qr_viz[hive.in_play])
 
-
-
     def all_rotations(self, qrs):
         a = - torch.roll(qrs,1)
         b = torch.roll(qrs,2)
@@ -653,15 +641,11 @@ class Board():
     def rotate_tensor(self,t,n=1):
         return (-1)**n * torch.roll(t,n,dims=1)
 
-
-
     def axial_to_cube(self,qr):
         q = qr[...,0]
         r = qr[...,1]
         s = -q-r
         return torch.stack((q,r,s),dim=-1)
-
-
 
     def string_rep(self):
         hives = [self.hive_player, self.hive_opp]
@@ -729,7 +713,4 @@ class Board():
         #     self.canon_board_to_viz_board()
 
         self.calculate_valid_moves()
-
         return
-
-
