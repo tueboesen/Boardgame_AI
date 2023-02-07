@@ -1,18 +1,14 @@
 import logging
-import random
 
 import coloredlogs
-import numpy as np
 import pygame
-import torch
 
-from Arena import Arena
-from Coach import Coach
 from hive.HiveGame import HiveGame
+from src.Arena import Arena
 from hive.nn.NNet import NNetWrapper
-from hive.ui import UI
-from players import HumanPlayer
-from utils import *
+from hive.Ui import UI
+from src.players import RandomPlayer
+from src.utils import *
 import sys
 sys.setrecursionlimit(1000)
 
@@ -41,8 +37,6 @@ def main():
 
     log.info('Loading %s...', HiveGame.__name__)
     g = HiveGame()
-    pygame.init()
-    pygame.display.set_caption("Hive")
     display = UI(g)
 
     if args['opp'] == 'nn':
@@ -52,8 +46,9 @@ def main():
         log.info('Loading checkpoint "%s/%s"...', args.load_folder_file[0], args.load_folder_file[1])
         nnet.load_checkpoint(args.load_folder_file[0], args.load_folder_file[1])
 
-    p1 = HumanPlayer(display)
-    p2 = HumanPlayer(display)
+    # p1 = HumanPlayer(display)
+    p1 = RandomPlayer(display)
+    p2 = RandomPlayer(display)
     players = [p1,p2]
     A = Arena(players,g,display)
     A.single_game()

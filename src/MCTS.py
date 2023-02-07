@@ -11,17 +11,22 @@ import numpy as np
 
 
 class Node:
-    def __init__(self, mcts, action, done, reward, board, parent=None):
+    """
+    A Tree node that contains the current board state, the possible actions from this state (child states), the number of visits to each of those as well as their expected outcomes.
+    """
+    def __init__(self, mcts, action, done, reward, game, parent=None):
         # self.game = parent.game
         # self.game = game
-        self.board = board
+        self.game = game
+        self.game_local = copy.deepcopy(game)
         self.action = action  # Action used to go to this state (0-5)
         self.board_action = action # The corresponding action on the board (47,566,1570,3004,6043)
         self.is_expanded = False
         self.parent = parent
         self.children = {}
+        self.mcts = mcts
 
-        self.valid_actions = self.board.get_valid_moves()
+        self.valid_actions = self.game.get_valid_moves()
         self.number_of_actions = len(self.valid_actions)
         self.child_total_value = torch.zeros([self.number_of_actions])  # Q
         self.child_priors = torch.empty([self.number_of_actions])  # P
@@ -30,12 +35,10 @@ class Node:
 
         self.reward = reward
         self.done = done
-        self.obs = self.board.rep_nn()
-
-        self.mcts = mcts
+        self.obs = self.game.rep_nn()
 
     def __repr__(self) -> str:
-        return f"Turn={self.board.turn},player={'white' if self.board.whites_turn else 'black'}"
+        return f"Turn={self.game.turn},player={'white' if self.game.whites_turn else 'black'}, visits={self.number_visits}, actions={self.child_number_visits}, child={self.child_priors}"
 
 
     @property
@@ -83,32 +86,41 @@ class Node:
         # self.action_idx = action_idx
         self.child_priors = child_priors.cpu()
 
-    def get_child(self, action):
+    def get_child(self, action,game=None):
         if action not in self.children:
-            board_next = copy.deepcopy(self.board)
-            board_action = self.valid_actions[action]
-            board_next.perform_action(board_action)
+            if game is None:
+                game = self.game
+            game_next = copy.deepcopy(game)
+            game_action = self.valid_actions[action]
+            game_next.perform_action(game_action)
 
             self.children[action.item()] = Node(
                 mcts=self.mcts,
                 action=action,
-                done=board_next.game_over,
-                reward=board_next.reward(),
-                board=board_next,
+                done=game_next.game_over,
+                reward=game_next.reward(),
+                game=game_next,
                 parent=self,
             )
             #mcts, action, done, reward, board, parent=None
         return self.children[action.item()]
 
-    def backup(self, value):
+    def backup(self, value,player):
         current = self
         while current.parent is not None:
             current.number_visits += 1
-            current.total_value += value
+            if player == current.game.current_player:
+                sign = 1
+            else:
+                sign = -1
+            current.total_value += sign * value
             current = current.parent
 
 
 class RootParentNode:
+    """
+    The parent root node, which sits at the top of the recursive tree structure
+    """
     def __init__(self, game):
         self.parent = None
         self.child_total_value = collections.defaultdict(float)
@@ -126,7 +138,16 @@ mcts_config = {
     "add_dirichlet_noise": True,}
 
 class MCTS:
-    def __init__(self, game, model, args=None,mcts_param=mcts_config):
+    """
+    The Monte Carlo Tree Search algorithm.
+
+    This algorithm works on a tree structure governed by Node.
+    When compute_action is
+
+    Note that this algorithm
+    """
+
+    def __init__(self, game, model, mcts_param=mcts_config):
         self.model = model
         self.game = game
         self.temperature = mcts_param["temperature"]
@@ -136,8 +157,39 @@ class MCTS:
         self.exploit = mcts_param["argmax_tree_policy"]
         self.add_dirichlet_noise = mcts_param["add_dirichlet_noise"]
         self.c_puct = mcts_param["puct_coefficient"]
+        node = Node(mcts=self, action=None, done=False, reward=0, game=game, parent=RootParentNode(self.game))
+        self.node = node
+        self.actionhist = []
 
-    def compute_action(self, node):
+    def reset(self):
+        node = Node(mcts=self, action=None, done=False, reward=0, game=self.game, parent=RootParentNode(self.game))
+        self.node = node
+        self.actionhist = []
+
+    def update_node(self,actionhist):
+        """
+        This routine is used when a MCTS-player plays with other players in a game.
+        self.compute_action will perform a MCTS and select the most favorable action and advance the node to this state,
+        but when other players performs a move we need some way to tell the MCTS-player that the game has advanced to a new state.
+        This routine serves that purpose.
+
+        actions should be a list of actions needed to propagate the game from the state saved in self.node, to the desired state.
+        """
+        node = self.node
+        for action in actionhist[len(self.actionhist):]:
+            action_idx = (action == node.valid_actions).nonzero().squeeze()
+            node = node.get_child(action_idx,node.game_local)
+        self.node = node
+        self.actionhist = copy.deepcopy(actionhist)
+        return
+    def compute_action(self):
+        """
+        When called, this routine performs a number of simulation equal to self.num_sims.
+        Each simulation starts from the game state defined in self.node and explores from that state until a leaf node is found (a node that has not previously been explored)
+        The leaf node is then evaluated using the model (typically a neural network), and the policy vector and its value is stored in the nodes.
+        After the specified number of simulations have been performed, the recommended action_idx is returned along with the probabilities and the child node.
+        """
+        node = self.node
         for _ in range(self.num_sims):
             leaf = node.select()
             if leaf.done:
@@ -153,7 +205,7 @@ class MCTS:
                 #     child_priors += self.dir_epsilon * torch.distributions.dirichlet.Dirichlet(torch.ones_like(child_priors)*self.dir_noise).samples()
 
                 leaf.expand(child_priors)
-            leaf.backup(value)
+            leaf.backup(value,leaf.game.current_player)
 
         # Tree policy target (TPT)
         tree_policy = node.child_number_visits / node.number_visits
@@ -162,12 +214,15 @@ class MCTS:
         # tree_policy = np.power(tree_policy, self.temperature)
         # tree_policy = tree_policy / torch.sum(tree_policy)
         if self.exploit:
-            # if exploit then choose action that has the maximum
+            # if exploit then choose action_idx that has the maximum
             # tree policy probability
-            action = torch.argmax(tree_policy)
+            action_idx = torch.argmax(tree_policy)
         else:
-            # otherwise sample an action according to tree policy probabilities
-            action = np.random.choice(np.arange(len(node.valid_actions)), p=tree_policy.numpy())
-        if action not in node.children:
-            node.get_child(action)
-        return tree_policy, action, node.children[action]
+            # otherwise sample an action_idx according to tree policy probabilities
+            action_idx = np.random.choice(np.arange(len(node.valid_actions)), p=tree_policy.numpy())
+        if action_idx not in node.children:
+            node.get_child(action_idx)
+        action = node.valid_actions[action_idx].item()
+        self.node = node.children[action_idx]
+        self.actionhist.append(action)
+        return tree_policy, action, self.node.game

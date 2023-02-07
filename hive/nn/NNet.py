@@ -6,8 +6,8 @@ import numpy as np
 from tqdm import tqdm
 
 sys.path.append('../../')
-from utils import *
-from NeuralNet import NeuralNet
+from src.utils import *
+from Templates.NeuralNet import NeuralNet
 
 import torch
 import torch.optim as optim
@@ -29,8 +29,8 @@ class NNetWrapper(NeuralNet):
         self.nnet = onnet(game, args)
         pytorch_total_params = sum(p.numel() for p in self.nnet.parameters())
         print(f"Number of parameters: {pytorch_total_params}")
-        self.board_x, self.board_y = game.getBoardSize()
-        self.action_size = game.getActionSize()
+        self.board_x, self.board_y = game.board_size
+        self.action_size = game.action_size
 
         if args.cuda:
             self.nnet.cuda()
@@ -47,7 +47,7 @@ class NNetWrapper(NeuralNet):
             pi_losses = AverageMeter()
             v_losses = AverageMeter()
 
-            batch_count = int(len(examples) / args.batch_size)
+            batch_count = max(int(len(examples) / args.batch_size),1)
 
             t = tqdm(range(batch_count), desc='Training Net')
             for _ in t:
@@ -58,7 +58,14 @@ class NNetWrapper(NeuralNet):
                     boards_nn.append(board.rep_nn())
                 boards_nn = torch.stack(boards_nn,dim=0)
                 # boards = torch.FloatTensor(np.array(boards).astype(np.float64))
-                target_pis = torch.stack(pis,dim=0)
+                pis_ext = []
+                for board,pi in zip(boards,pis):
+                    act = torch.zeros(self.action_size)
+                    indices = board.hive_player.moves.flatten().nonzero()
+                    act[indices[:,0]] = pi
+                    pis_ext.append(act)
+
+                target_pis = torch.stack(pis_ext,dim=0)
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
                 # predict

@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import sys
@@ -9,10 +10,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from Arena import Arena
-from MCTS2 import MCTS, Node, RootParentNode
-# from MCTS import MCTS
-from hive.viz import draw_board
+from src.Arena import Arena
+from src.MCTS import MCTS
+from src.players import MCTSNNPlayer
 
 log = logging.getLogger(__name__)
 
@@ -20,21 +20,22 @@ log = logging.getLogger(__name__)
 class Coach():
     """
     This class executes the self-play + learning. It uses the functions defined
-    in Game and NeuralNet. args are specified in main.py.
+    in Game and NeuralNet.
     """
 
-    def __init__(self, game, nnet, args):
+    def __init__(self, game, nnet, args=None,display=None):
         self.game = game
         self.nnet = nnet
         self.pnet = self.nnet.__class__(self.game)  # the competitor network
         self.args = args
-        self.mcts = MCTS(self.game, self.nnet, self.args)
+        self.display = display
+        self.mcts = MCTS(self.game, self.nnet)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
         self.skipFirstSelfPlay = False  # can be overriden in loadTrainExamples()
 
-    def executeEpisode(self):
+    def self_play_game(self):
         """
-        This function executes one episode of self-play, starting with player 1.
+        This function self-plays one game.
         As the game is played, each turn is added as a training example to
         trainExamples. The game is played till the game ends. After the game
         ends, the outcome of the game is used to assign values to each example
@@ -49,9 +50,9 @@ class Coach():
                            the player eventually won the game, else -1.
         """
         trainExamples = []
-        board = self.game.getInitBoard()
-        node = Node(self.mcts, action=None, done=False, reward=0, board=board, parent=RootParentNode(self.game))
+        # game = self.game
         episodeStep = 0
+        game = copy.deepcopy(self.mcts.game)
 
         while True:
             episodeStep += 1
@@ -60,20 +61,19 @@ class Coach():
             temp = int(episodeStep < self.args.tempThreshold)
 
             # pi = self.mcts.getActionProb(board, temp=temp)
-            move_prob, action, node_next = self.mcts.compute_action(node)
+            move_prob, action, game_next = self.mcts.compute_action()
 
             # move_prob = torch.zeros(self.game.getActionSize(),dtype=torch.float)
             # move_prob[board.get_valid_moves()] = torch.tensor(pi,dtype=torch.float)
-            trainExamples.append([node.board, move_prob, None])
+            trainExamples.append([game, move_prob, None])
 
             # action_idx = np.random.choice(len(pi), p=pi)
             # board = self.game.getNextState_from_possible_actions(board, action_idx)
-            node = node_next
-            board = node.board
+            game = copy.deepcopy(game_next)
 
 
-            if board.game_over:# != 0:
-                r = board.reward()
+            if game.game_over:# != 0:
+                r = game.reward()
                 # nmoves = 0
                 # nvisits = 0
                 # for key,val in self.mcts.Vs.items():
@@ -84,7 +84,10 @@ class Coach():
                 # print(f"Turn={board.turn}, Winner={board.winner}, average_moves={average_moves:2.2f}, visited_board_states={len(self.mcts.Vs)}, average_board_state_visits={nvisits/len(self.mcts.Ns):2.2f}")
                 # # player = 1 if board.whites_turn else -1
                 # # raise NotImplementedError("We need to set this up")
-                return [(x[0], x[1], r * ((-1) ** (board.whites_turn != x[0].whites_turn))) for x in trainExamples]
+                # trainExamples = [(x[0], x[1], r * ((-1) ** (game.whites_turn != x[0].whites_turn))) for x in trainExamples]
+                trainExamples = [(x[0], x[1], r * ((-1) ** (game.current_player != x[0].current_player))) for x in trainExamples]
+
+                return trainExamples
 
     def learn(self):
         """
@@ -99,12 +102,12 @@ class Coach():
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
             # examples of the iteration
-            self.mcts = MCTS(self.game, self.nnet, self.args)  # reset search tree
+            self.mcts = MCTS(self.game, self.nnet)  # reset search tree
             if not self.skipFirstSelfPlay or i > 1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
                 c = 0
                 for _ in tqdm(range(self.args.numEps), desc="Self Play"):
-                    iterationTrainExamples += self.executeEpisode()
+                    iterationTrainExamples += self.self_play_game()
                     # c += 1
                     # if c>1:
                     #     quit()
@@ -129,18 +132,23 @@ class Coach():
             # training new network, keeping a copy of the old one
             self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            pmcts = MCTS(self.game, self.pnet, self.args) # TODO this should be a copy of the MCTS just used I think
+            pmcts = MCTS(self.game, self.pnet)
 
             self.nnet.train(trainExamples)
-            nmcts = MCTS(self.game, self.nnet, self.args) # TODO this should perhaps be a new MCTS? or maybe still a copy of the previous?
+            nmcts = MCTS(self.game, self.nnet)
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
-            arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-                          lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
-            pwins, nwins, draws = arena.playGames(self.args.arenaCompare)
+            player_champion = MCTSNNPlayer(self.display,pmcts)
+            player_contender = MCTSNNPlayer(self.display,nmcts)
+            players = [player_contender, player_champion]
+            arena = Arena(players, self.game, self.display)
+            # arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
+            #               lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
+            wins, draws = arena.playGames(self.args.arenaCompare)
 
-            log.info('NEW/PREV WINS : %d / %d ; DRAWS : %d' % (nwins, pwins, draws))
-            if pwins + nwins == 0 or float(nwins) / (pwins + nwins) < self.args.updateThreshold:
+
+            log.info(f'Wins (contender/champion): {wins[0]}/{wins[1]} - draws {draws}')
+            if (sum(wins) == 0) or ((wins[0] / sum(wins)) < self.args.updateThreshold):
                 log.info('REJECTING NEW MODEL')
                 self.nnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             else:

@@ -1,7 +1,6 @@
 import torch
 
-from players.HiveGameLogic_utils import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
-from players.viz import draw_board
+from src.players import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
 
 
 def calculate_moves(piece_id,qr,state):

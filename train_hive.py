@@ -5,10 +5,11 @@ import coloredlogs
 import numpy as np
 import torch
 
-from Coach import Coach
 from hive.HiveGame import HiveGame
+from hive.Ui import UI
+from src.Coach import Coach
 from hive.nn.NNet import NNetWrapper
-from utils import *
+from src.utils import *
 import sys
 sys.setrecursionlimit(1000)
 
@@ -73,7 +74,7 @@ def main():
 
     log.info('Loading %s...', HiveGame.__name__)
     g = HiveGame()
-
+    display = UI(g)
     log.info('Loading %s...', NNetWrapper.__name__)
     nnet = NNetWrapper(g)
 
@@ -84,7 +85,7 @@ def main():
         log.warning('Not loading a checkpoint!')
 
     log.info('Loading the Coach...')
-    c = Coach(g, nnet, args)
+    c = Coach(g, nnet, args,display=display)
 
     if args.load_model:
         log.info("Loading 'trainExamples' from file...")

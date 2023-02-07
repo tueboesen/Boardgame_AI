@@ -8,6 +8,9 @@ from pygame import time
 
 
 class Hexes:
+    """
+    This contains all the hexes that makes up the board the pieces move around on
+    """
     def __init__(self, screen, offset, hex_radius, color_default, color_hover, color_selected, color_highlight):
         self.screen = screen
         self.offset = offset
@@ -98,6 +101,9 @@ class Hexes:
 
 
 class Hexagon(Hexes):
+    """
+    This is a single hexagon on the board
+    """
     def __init__(self, x, y, color, screen, offset, hex_radius, symbol=None, color_hover=(0, 121, 251), color_text=(40, 40, 40), color_text_bg=(0, 121, 251)):
         self.n = 6
         self.x = x

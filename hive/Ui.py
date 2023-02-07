@@ -1,115 +1,13 @@
-from math import cos, sin, pi, radians
-from collections import namedtuple
-import numpy as np
+from math import pi
+
 import pygame
 import torch
 from pygame import gfxdraw
 from pygame import time
 
-from hive.HiveGameLogic_utils import piece_symbol
-from hive.ui_hex import Hexes
-
-HEX_RADIUS = 30
-HEX_INNER_OUTER_SPACING = 4
-
-ICON_SIZE = (round(1.5*HEX_RADIUS),round(1.5*HEX_RADIUS))
-
-
-# Colors
-BLACK = (0,0,0)
-WHITE = (255,255,255)
-BLUE = (0, 121, 251)
-BROWN = (164,116,73)
-GRAY = (70, 70, 70)
-GREEN = (0, 255, 0)
-
-
-PLAYER1 = (200,200,200)
-PLAYER1_SEL = WHITE
-PLAYER2 = (20,20,20)
-PLAYER2_SEL = (40,40,40)
-
-HIGHLIGHT = GREEN
-HOVER = BLUE
-BOARD = BROWN
-TEXT = (150,150,150)
-
-class HexCoordinates:
-    def __init__(self,hive,screen):
-        self.hive = hive
-        n = len(hive.qr)
-        self.screen = screen
-        self.n = n
-        self._visible = torch.empty(n,dtype=torch.bool)
-        self._xy = torch.empty((n,2))
-        self._xy_inner = torch.empty((n,6,2))
-        self._xy_outer = torch.empty((n,6,2))
-        self._xy_rect = torch.empty((n,4))
-        self._color_inner = torch.empty((n,3))
-        self._color_edge = torch.empty((n,3))
-        self.rect = [None]*n
-        self._i = 0
-    # def add(self, viz,xy,xy_inner,xy_rect,color_inner,color_edge):
-    #     self._visible.append(viz)
-    #     self._xy.append(xy)
-    #     self._xy_inner.append(xy_inner)
-    #     self._xy_rect.append(xy_rect)
-    #     self._color_inner.append(color_inner)
-    #     self._color_edge.append(color_edge)
-
-    def update(self,i,viz,xy,xy_inner,xy_outer,xy_rect,color_inner,color_edge):
-        self._visible[i] = viz
-        self._xy[i] = xy
-        self._xy_inner[i] = xy_inner
-        self._xy_outer[i] = xy_outer
-        self._xy_rect[i] = xy_rect
-        self._color_inner[i] = color_inner
-        self._color_edge[i] = color_edge
-
-    def __len__(self):
-        return self.n
-
-    def __iter__(self):
-        self._i = 0
-        return self
-
-    def __next__(self):
-        if self._i < len(self):
-            result = (self._visible[self._i], self._xy[self._i], self._xy_inner[self._i], self._xy_rect[self._i], self._color_inner[self._i], self._color_edge[self._i])
-            self._i += 1
-            return result
-        else:
-            raise StopIteration
-
-    def draw_hexes(self):
-        for i in range(self.n):
-            if self._visible[i]:
-                self.draw_and_save_rect(i)
-                self.draw_hex(i)
-            else:
-                self._rect[i] = None
-
-    def draw_hex(self,i,color_inner=None):
-        if color_inner is None:
-            color_inner = self._color_inner[i].numpy()
-        gfxdraw.filled_polygon(self.screen, self._xy_inner[i].numpy(), color_inner)
-        gfxdraw.aapolygon(self.screen, self._xy_inner[i].numpy(), color_inner) # Inner hexagon edge
-        sym = piece_symbol(self.hive.types[i])
-        text = pygame.font.SysFont("Sans", 18).render(f"{sym if self.hive.pieces_under[i] == 0 else sym + '+' + str(self.hive.pieces_under[i])}", True,TEXT)  # , self.ui_color_text_bg
-        text_rect = text.get_rect()
-        text_rect.center = (self._xy[i][0].item(), self._xy[i][1].item())
-        self.screen.blit(text, text_rect)
-
-    def draw_outline(self,i,color=None):
-        if color is None:
-            color = self._color_edge[i]
-        gfxdraw.aapolygon(self.screen, self._xy_outer[i].numpy(), color)
-
-    def draw_and_save_rect(self,i):
-        # c = tuple(int(self._color_inner[i].numpy()))
-        # r = tuple(int(self._xy_rect[i].numpy()))
-        self.rect[i] = pygame.draw.rect(self.screen, tuple(self._color_inner[i].to(dtype=torch.int).numpy()), pygame.Rect(tuple(self._xy_rect[i].to(dtype=torch.int).numpy())))
-
+from hive.HiveGameLogic_utils import piece_symbol, axial_to_cube_ext
+from hive.UiConstants import *
+from hive.Ui_board import Hexes
 
 
 class UI:
@@ -124,15 +22,15 @@ class UI:
 
     """
     def __init__(self, game):
+        pygame.init()
+        pygame.display.set_caption("Hive")
         self.n = 6
-        self.game = game
-        self.board = game.board
+        # self.board = game.board
         self.board_size = game.board_size[0]
-        self.hives = game.board.hives
+        # self.hives = game.board.hives
         # assert 1 < self.board_size <= 26
-
-        self.hive_white = game.board.hive_white
-        self.hive_black = game.board.hive_black
+        # self.hive_white = game.board.hive_white
+        # self.hive_black = game.board.hive_black
         self.clock = time.Clock()
         self.hex_radius = HEX_RADIUS
         self.hex_ios = HEX_INNER_OUTER_SPACING
@@ -142,25 +40,12 @@ class UI:
         self.screen = pygame.display.set_mode(
             (1.5 * self.x_offset + (2 * self.hex_radius) * self.board_size + self.hex_radius * self.board_size,
              round(self.y_offset + (1.75 * self.hex_radius) * self.board_size)))
-
-        # Piece.ui_screen = self.screen
-        # Piece.ui_x_offset = self.x_offset
-        # Piece.ui_y_offset = self.y_offset
-
-        # Colors
-        # self.red = (222, 29, 47)
-        # self.blue = (0, 121, 251)
-        # self.green = (0, 255, 0)
         self.white = (255, 255, 255)
         self.color_highlight = (0, 255, 0)
         self.color_hover = (0, 121, 251)
-        # self.white_selected = (255, 255, 255)
         self.black = (40, 40, 40)
-        # self.black_highlight = (50, 50, 50)
-        # self.black_selected = (60, 60, 60)
         self.gray = (70, 70, 70)
         self.brown = (164, 116, 73)
-        # self.brown_highlight = (180,128,80)
         self.gold = (255, 215, 0)
         self.board_color = self.brown
         self.piece_hovered = None
@@ -168,14 +53,15 @@ class UI:
         self.board_hovered = None
         self.dq = 0
         self.dr = 0
+        self.summary = ''
         self.screen.fill(self.gray)
         self.fonts = pygame.font.SysFont("Sans", 20)
         self.hexes_board = Hexes(self.screen, self.hex_ios, self.hex_radius, self.brown, self.color_hover, None, self.color_highlight)
-        self.hives_hexes = []
-        for hive in self.hives:
-            self.hives_hexes.append(HexCoordinates(hive,self.screen))
+        self.hexes_hives = []
+        for hive in game.hives:
+            self.hexes_hives.append(HexCoordinates(hive, self.screen))
         self.create_board()
-        self.update_board()
+        self.update_board(game)
         self.__call__()
 
 
@@ -230,13 +116,13 @@ class UI:
                 xy = self.get_coordinates(torch.tensor(row), torch.tensor(column))
                 self.hexes_board.create_hex(xy[0].item(), xy[1].item())
 
-    def find_shift_from_edges_of_board(self):
+    def find_shift_from_edges_of_board(self,game):
         qmin = torch.tensor(999)
         qmax = -torch.tensor(999)
         rmin = torch.tensor(999)
         rmax = -torch.tensor(999)
-        for hive in self.hives:
-            qr_viz = self.board.rep_viz(hive)
+        for hive in game.hives:
+            qr_viz = game.rep_viz(hive)
             m = hive.in_play
             q = qr_viz[m, 0]
             r = qr_viz[m, 1]
@@ -245,20 +131,21 @@ class UI:
                 qmax = max(torch.max(q),qmax)
                 rmin = min(torch.min(r),rmin)
                 rmax = max(torch.max(r),rmax)
-        dq = min(self.board_size-1-qmax,max(1 - qmin,0)) #<0
-        dr = min(self.board_size-1-rmax,max(1 - rmin,0)) #<0
+        dq = min(self.board_size-2-qmax,max(1 - qmin,0)) #<0
+        dr = min(self.board_size-2-rmax,max(1 - rmin,0)) #<0
         self.dqr = torch.tensor([dq,dr])
         return
 
 
-    def update_board(self):
+    def update_board(self,game):
+        self.summary = game.summary
         self.piece_selected = None
-        self.find_shift_from_edges_of_board()
-        for hive, hex_coords in zip(self.hives,self.hives_hexes):
+        self.find_shift_from_edges_of_board(game)
+        for hive, hex_coords in zip(game.hives, self.hexes_hives):
             n = len(hive.qr)
             color_white = hive.white
             color_base = PLAYER1 if color_white else PLAYER2
-            qr_viz = self.board.rep_viz(hive)
+            qr_viz = game.rep_viz(hive)
             qr_viz[hive.in_play] = qr_viz[hive.in_play] + self.dqr
             xy = self.get_coordinates(qr_viz[:,0],qr_viz[:,1])
             xy_inner = self.calculate_xy_inner(xy)
@@ -267,9 +154,9 @@ class UI:
             viz = hive.level == 0
             color_edge = torch.ones(n,1) * torch.tensor(color_base)
             hex_coords.update(torch.arange(n), viz, xy, xy_inner, xy_outer, xy_rect, color_edge, color_edge)
-        moves = self.board.hive_player.moves.nonzero()
+        moves = game.hive_player.moves.nonzero()
         qr_moves = moves[:,1:]
-        qr_viz_moves = self.board.transform.inverse(qr_moves) + self.dqr
+        qr_viz_moves = game.transform.inverse(qr_moves) + self.dqr
         self.moves = torch.cat((moves[:,:1],qr_viz_moves),dim=1)
 
 
@@ -277,7 +164,7 @@ class UI:
         self.screen.fill(self.gray)
         self.draw_text_summary()
         self.hexes_board.draw_hexes()
-        for hive_hexes in self.hives_hexes:
+        for hive_hexes in self.hexes_hives:
             hive_hexes.draw_hexes()
         self.draw_selected()
         self.draw_hover_effect()
@@ -285,7 +172,7 @@ class UI:
     def draw_selected(self):
         if self.piece_selected is not None:
             color = PLAYER1_SEL if self.piece_selected[0] == 0 else PLAYER2_SEL
-            self.hives_hexes[self.piece_selected[0]].draw_hex(self.piece_selected[1],color_inner=color)
+            self.hexes_hives[self.piece_selected[0]].draw_hex(self.piece_selected[1], color_inner=color)
             M = self.moves[:,0] == self.piece_selected[1]
             possible_moves = self.moves[M,1:]
             # possible_moves = self.hives[self.piece_selected[0]].moves[self.piece_selected[1]].nonzero()
@@ -298,12 +185,12 @@ class UI:
         if self.board_hovered is not None:
             self.hexes_board.draw_hover(self.board_hovered)
         if self.piece_hovered is not None:
-            hive_hexes = self.hives_hexes[self.piece_hovered[0]]
+            hive_hexes = self.hexes_hives[self.piece_hovered[0]]
             hive_hexes.draw_outline(self.piece_hovered[1],color=HOVER)
     def draw_text_summary(self):
         node_font = pygame.font.SysFont("Sans", 18)
         foreground = self.black
-        text = node_font.render(self.game.summary, True, foreground, self.white)
+        text = node_font.render(self.summary, True, foreground, self.white)
         text_rect = text.get_rect()
         text_rect.center = (self.screen.get_width() / 2, 20)
         self.screen.blit(text, text_rect)
@@ -322,7 +209,7 @@ class UI:
         """
         mouse_pos = pygame.mouse.get_pos()
         piece_index = None
-        for j,hive_hexes in enumerate(self.hives_hexes):
+        for j,hive_hexes in enumerate(self.hexes_hives):
             for i in range(hive_hexes.n):
                 rect = hive_hexes.rect[i]
                 if rect is not None and rect.collidepoint(mouse_pos):
@@ -366,3 +253,123 @@ class UI:
 
 
 
+class HexCoordinates:
+    def __init__(self,hive,screen):
+        self.hive = hive
+        n = len(hive.qr)
+        self.screen = screen
+        self.n = n
+        self._visible = torch.empty(n,dtype=torch.bool)
+        self._xy = torch.empty((n,2))
+        self._xy_inner = torch.empty((n,6,2))
+        self._xy_outer = torch.empty((n,6,2))
+        self._xy_rect = torch.empty((n,4))
+        self._color_inner = torch.empty((n,3))
+        self._color_edge = torch.empty((n,3))
+        self.rect = [None]*n
+        self._i = 0
+    # def add(self, viz,xy,xy_inner,xy_rect,color_inner,color_edge):
+    #     self._visible.append(viz)
+    #     self._xy.append(xy)
+    #     self._xy_inner.append(xy_inner)
+    #     self._xy_rect.append(xy_rect)
+    #     self._color_inner.append(color_inner)
+    #     self._color_edge.append(color_edge)
+
+    def update(self,i,viz,xy,xy_inner,xy_outer,xy_rect,color_inner,color_edge):
+        self._visible[i] = viz
+        self._xy[i] = xy
+        self._xy_inner[i] = xy_inner
+        self._xy_outer[i] = xy_outer
+        self._xy_rect[i] = xy_rect
+        self._color_inner[i] = color_inner
+        self._color_edge[i] = color_edge
+
+    def __len__(self):
+        return self.n
+
+    def __iter__(self):
+        self._i = 0
+        return self
+
+    def __next__(self):
+        if self._i < len(self):
+            result = (self._visible[self._i], self._xy[self._i], self._xy_inner[self._i], self._xy_rect[self._i], self._color_inner[self._i], self._color_edge[self._i])
+            self._i += 1
+            return result
+        else:
+            raise StopIteration
+
+    def draw_hexes(self):
+        for i in range(self.n):
+            if self._visible[i]:
+                self.draw_and_save_rect(i)
+                self.draw_hex(i)
+            else:
+                self.rect[i] = None
+
+    def draw_hex(self,i,color_inner=None):
+        if color_inner is None:
+            color_inner = self._color_inner[i].numpy()
+        gfxdraw.filled_polygon(self.screen, self._xy_inner[i].numpy(), color_inner)
+        gfxdraw.aapolygon(self.screen, self._xy_inner[i].numpy(), color_inner) # Inner hexagon edge
+        sym = piece_symbol(self.hive.types[i])
+        text = pygame.font.SysFont("Sans", 18).render(f"{sym if self.hive.pieces_under[i] == 0 else sym + '+' + str(self.hive.pieces_under[i].item())}", True,TEXT)  # , self.ui_color_text_bg
+        text_rect = text.get_rect()
+        text_rect.center = (self._xy[i][0].item(), self._xy[i][1].item())
+        self.screen.blit(text, text_rect)
+
+    def draw_outline(self,i,color=None):
+        if color is None:
+            color = self._color_edge[i]
+        gfxdraw.aapolygon(self.screen, self._xy_outer[i].numpy(), color)
+
+    def draw_and_save_rect(self,i):
+        # c = tuple(int(self._color_inner[i].numpy()))
+        # r = tuple(int(self._xy_rect[i].numpy()))
+        self.rect[i] = pygame.draw.rect(self.screen, tuple(self._color_inner[i].to(dtype=torch.int).numpy()), pygame.Rect(tuple(self._xy_rect[i].to(dtype=torch.int).numpy())))
+
+
+
+class TransformMatrix:
+    def __init__(self):
+        """
+        A transformation matrix that converts homogenous hexagonal coordinates in cube format between the canonical representation and the vizualization representation.
+        """
+        self.A = torch.eye(4)
+        self.extra_translation = torch.eye(4)
+
+    def forward(self,qr,A=None):
+        qrst = axial_to_cube_ext(qr)
+        if A is None:
+            A = self.A
+        qrst_trans = qrst.to(dtype=torch.float) @ A.T
+        qr_trans = qrst_trans[:,:2]
+        qr_trans_int = qr_trans.round(decimals=0).long()
+        return qr_trans_int
+    def inverse(self,qr,A=None):
+        qrst = axial_to_cube_ext(qr)
+        if A is None:
+            A = self.A
+        qrst_trans = qrst.to(dtype=torch.float) @ torch.linalg.inv(A.T)
+        qr_trans = qrst_trans[:,:2]
+        qr_trans_int = qr_trans.round(decimals=0).long()
+        return qr_trans_int
+
+
+    def reset(self):
+        self.A = torch.eye(4,device=self.A.device)
+    def update(self,A):
+        self.A = A @ self.A
+        return
+
+    def test(self):
+        qr = torch.randint(-10,20,(10,2))
+        qr_forward = self.forward(qr)
+        qr2 = self.inverse(qr_forward)
+        assert qr == qr2
+
+        q = torch.arange(-10,20)
+        r = torch.arange(-20,10)
+        qr = torch.stack((q,r),dim=1)
+        qr_forward = self.forward(qr)

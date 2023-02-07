@@ -20,8 +20,8 @@
 
 import unittest
 
-import Arena
-from MCTS import MCTS
+from src import Arena
+from temp.MCTS import MCTS
 
 from othello.OthelloGame import OthelloGame
 from othello.OthelloPlayers import RandomPlayer
@@ -51,7 +51,7 @@ from dotsandboxes.DotsAndBoxesGame import DotsAndBoxesGame
 from dotsandboxes.keras.NNet import NNetWrapper as DotsAndBoxesKerasNNet
 
 import numpy as np
-from utils import *
+from src.utils import *
 
 class TestAllGames(unittest.TestCase):
 
