@@ -182,7 +182,7 @@ class MCTS:
         self.node = node
         self.actionhist = copy.deepcopy(actionhist)
         return
-    def compute_action(self):
+    def compute_action(self,game):
         """
         When called, this routine performs a number of simulation equal to self.num_sims.
         Each simulation starts from the game state defined in self.node and explores from that state until a leaf node is found (a node that has not previously been explored)

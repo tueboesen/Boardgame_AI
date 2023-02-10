@@ -29,6 +29,7 @@ class HiveGame():
         self.canon_actions = None
         self.action_size = self.npieces_per_player * self.board_len * self.board_len
         self.transform = TransformMatrix()
+        self.hist = ['start']
 
     def __repr__(self) -> str:
         return f"Turn={self.turn},player={'white' if self.whites_turn else 'black'}"
@@ -83,9 +84,6 @@ class HiveGame():
         else:
             hive.qr[hive.in_play] = self.transform.forward(hive.qr[hive.in_play], A)
 
-    def rep_canon(self,hive):
-        qr_canon = self.transform.forward(hive.qr)
-        return qr_canon
 
     def rep_nn(self):
         """
@@ -194,9 +192,12 @@ class HiveGame():
                 if surrounded:
                     hive.lost = True
                     self.game_over = True
-        if self.turn >= 10:
+        if self.hist.count(self.string_rep()) >= 3:
             self.game_over = True
-            self.hive_white.lost = True
+        #
+        # if self.turn >= 100:
+        #     self.game_over = True
+        #     self.hive_white.lost = True
         if self.game_over:
             if self.hive_white.lost ^ self.hive_black.lost:
                 self.winner = 1 if self.hive_white.lost else 0
@@ -455,9 +456,8 @@ class HiveGame():
             for hive in self.hives:
                 hive.qr = hive.qr_old.clone()
             self.translate_rotate_mirror_matrix(idx_sel,[(hp,hp.qr),(ho,ho.qr)],save_transform=save_transform)
-            if len(possible_permutations) > 1:
-                string = self.string_rep()
-                strings.append(string)
+            string = self.string_rep()
+            strings.append(string)
 
 
         if len(possible_permutations) > 1:
@@ -469,6 +469,7 @@ class HiveGame():
             # self.reverse_translate_rotate_mirror([(hp,hp.qr_canon),(ho,ho.qr_canon)])
             # assert (hp.qr == hp.qr_canon).all() and (ho.qr == ho.qr_canon).all()
             # self.translate_rotate_mirror(possible_permutations[indices[0]], [(hp, hp.qr_canon), (ho, ho.qr_canon)])
+        self.hist.append(strings[0])
         return
 
 
@@ -729,6 +730,7 @@ class HiveGame():
         else:
             hp.move_piece(idx, q, r)
 
+
     def perform_action(self,action_idx):
         """
         Everytime an action is taken the following things need to happen:
@@ -749,14 +751,13 @@ class HiveGame():
         assert b[i,j,k] == action_idx
         assert hive.moves[i,j,k] == True
         self.move_piece(i,j,k)
-        self.check_winners()
         self.next_player()
         self.shift_pieces_from_edges()
         self.generate_canonical_board()
         # if self.viz:
         #     self.canon_board_to_viz_board()
-
         self.calculate_valid_moves()
+        self.check_winners()
 
         return
 

@@ -11,7 +11,7 @@ import torch
 from tqdm import tqdm
 
 from src.Arena import Arena
-from src.MCTS import MCTS
+from src.MCGS import MCGS
 from src.Players import MCTSNNPlayer
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class Coach():
         self.pnet = self.nnet.__class__(self.game)  # the competitor network
         self.args = args
         self.display = display
-        self.mcts = MCTS(self.game, self.nnet)
+        self.mcgs = MCGS(self.nnet)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
         self.skipFirstSelfPlay = False  # can be overriden in loadTrainExamples()
 
@@ -52,7 +52,7 @@ class Coach():
         trainExamples = []
         # game = self.game
         episodeStep = 0
-        game = copy.deepcopy(self.mcts.game)
+        game = copy.deepcopy(self.game)
 
         while True:
             episodeStep += 1
@@ -61,7 +61,7 @@ class Coach():
             temp = int(episodeStep < self.args.tempThreshold)
 
             # pi = self.mcts.getActionProb(board, temp=temp)
-            move_prob, action, game_next = self.mcts.compute_action()
+            move_prob, action, game_next = self.mcgs.compute_action(game)
 
             # move_prob = torch.zeros(self.game.getActionSize(),dtype=torch.float)
             # move_prob[board.get_valid_moves()] = torch.tensor(pi,dtype=torch.float)
@@ -102,7 +102,7 @@ class Coach():
             # bookkeeping
             log.info(f'Starting Iter #{i} ...')
             # examples of the iteration
-            self.mcts = MCTS(self.game, self.nnet)  # reset search tree
+            self.mcgs = MCGS(self.nnet)  # reset search tree
             if not self.skipFirstSelfPlay or i > 1:
                 iterationTrainExamples = deque([], maxlen=self.args.maxlenOfQueue)
                 c = 0
@@ -132,14 +132,14 @@ class Coach():
             # training new network, keeping a copy of the old one
             self.nnet.save_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
             self.pnet.load_checkpoint(folder=self.args.checkpoint, filename='temp.pth.tar')
-            pmcts = MCTS(self.game, self.pnet)
+            pmcgs = MCGS(self.pnet)
 
             self.nnet.train(trainExamples)
-            nmcts = MCTS(self.game, self.nnet)
+            nmcgs = MCGS(self.nnet)
 
             log.info('PITTING AGAINST PREVIOUS VERSION')
-            player_champion = MCTSNNPlayer(self.display,pmcts)
-            player_contender = MCTSNNPlayer(self.display,nmcts)
+            player_champion = MCTSNNPlayer(self.display,pmcgs)
+            player_contender = MCTSNNPlayer(self.display,nmcgs)
             players = [player_contender, player_champion]
             arena = Arena(players, self.game, self.display)
             # arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),

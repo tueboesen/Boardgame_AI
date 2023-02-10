@@ -32,7 +32,7 @@ class Arena():
     @property
     def nplayers(self):
         return len(self.players)
-    def playGame(self,players=None):
+    def playGame(self,players=None,save_images=True):
         """
         Plays a single game.
         Returns:
@@ -42,6 +42,8 @@ class Arena():
                 draw result returned from the game that is neither 1, -1, nor 0.
                 #TODO THIS is outdated and should be fixed for multiplayer games
         """
+        if save_images:
+            i = 0
         if players is None:
             players = self.players
         game = self.game
@@ -57,11 +59,15 @@ class Arena():
             game.perform_action(action)
             actionhist.append(action)
             if self.display is not None:
+                pygame.event.get()
                 self.display.update_board(game)
                 self.display()
                 pygame.display.update()
-                # self.display.clock.tick(30)
+                self.display.clock.tick(30)
                 sleep(0.01)
+                if save_images:
+                    pygame.image.save(self.display.screen,f'{i:03d}.png')
+                    i += 1
         # print("game over!")
         # input("Press any key to continue... ")
         winner = game.winner

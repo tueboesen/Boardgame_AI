@@ -1,3 +1,4 @@
+from copy import copy
 from math import pi
 
 import pygame
@@ -58,6 +59,8 @@ class UI:
         self.fonts = pygame.font.SysFont("Sans", 20)
         self.hexes_board = Hexes(self.screen, self.hex_ios, self.hex_radius, self.brown, self.color_hover, None, self.color_highlight)
         self.hexes_hives = []
+        self.current_player = copy(game.current_player)
+        self.transform = game.transform
         for hive in game.hives:
             self.hexes_hives.append(HexCoordinates(hive, self.screen))
         self.create_board()
@@ -139,8 +142,10 @@ class UI:
 
     def update_board(self,game):
         self.summary = game.summary
+        self.current_player = copy(game.current_player)
         self.piece_selected = None
         self.find_shift_from_edges_of_board(game)
+        self.transform = game.transform
         for hive, hex_coords in zip(game.hives, self.hexes_hives):
             n = len(hive.qr)
             color_white = hive.white
@@ -239,7 +244,7 @@ class UI:
             if (self.moves[M,1:] == qr).all(dim=1).any():
             # hp = self.board.hive_player
             # if hp.moves[self.piece_selected[1],row,col]: # Move allowed?
-                qr_canon = self.board.transform.forward(qr-self.dqr)
+                qr_canon = self.transform.forward(qr-self.dqr)
                 a = torch.arange(11 * 24 * 24)
                 b = a.view(11, 24, 24)
                 action_idx = b[self.piece_selected[1],qr_canon[0,0],qr_canon[0,1]]
@@ -247,7 +252,7 @@ class UI:
         if self.piece_hovered is not None and self.piece_hovered == self.piece_selected:  # unselect piece
             self.piece_selected = None
         elif self.piece_hovered is not None and self.piece_selected is None:
-            if (self.board.whites_turn and self.piece_hovered[0] == 0) or (not self.board.whites_turn and self.piece_hovered[0] == 1):
+            if (self.current_player == self.piece_hovered[0]):
                 self.piece_selected = self.piece_hovered
         return
 

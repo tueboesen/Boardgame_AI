@@ -7,7 +7,7 @@ from hive.HiveGame import HiveGame
 from src.Arena import Arena
 from hive.nn.NNet import NNetWrapper
 from hive.Ui import UI
-from src.players import RandomPlayer
+from src.Players import RandomPlayer, HumanPlayer
 from src.utils import *
 import sys
 sys.setrecursionlimit(1000)
@@ -51,7 +51,7 @@ def main():
     p2 = RandomPlayer(display)
     players = [p1,p2]
     A = Arena(players,g,display)
-    A.single_game()
+    A.playGame()
 
 
 

@@ -1,6 +1,6 @@
 import torch
 
-from src.players import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
+from src.Players import piece_name, BoolTensor, generate_board, bitmap_get_neighbors, DIRECTIONS
 
 
 def calculate_moves(piece_id,qr,state):
