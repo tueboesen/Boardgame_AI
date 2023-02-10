@@ -1,41 +1,18 @@
+# Hive 
+This is an implementation of the boardgame [hive](https://boardgamegeek.com/boardgame/2655/hive), which is a game considered much more difficult than go or chess to solve with a neural network as detailed [here](https://liacs.leidenuniv.nl/~plaata1/papers/IEEE_Conference_Hive_D__Kampert.pdf).
+
+The game is a 2 player game, where players takes turn playing a piece or moving a piece, with the goal of completely surrounding the others queen. 
+
+![RandomMoves](https://github.com/tueboesen/Hive_nn/blob/master/hive/icons/hive_example.gif)
+
 # Structure 
-
- [hive](https://boardgamegeek.com/boardgame/2655/hive).
-
-HiveGame.py - The main game file, which contains the API interface for any other modules, and contains the whole Hive game (not the UI though!).
-Hive.py - Contains the hive class, which contains everything related to a single hive (the pieces, their types and the location on the board, ect)
-Movements.py - Contains routines for calculating the allowed movements of each piece type 
-HiveGameLocgic_utils.py - Contains helper routines.
-
-Graph.py
-UI
-UI_hex
-viz.
-
-
-
-
-
-
-
-
-
-# Hive neural network
-
-This is a frame work for training neural networks on board games.
-
-The frame work is still in an early stage and currently only Hive is supported.
-
-- [ ] Fast move calculations
-- [ ] Canonical representation of board state
-- [ ] Transformation between vizualization board and canonical representation
-- [ ] Pygame vizualization and movement selection
-- [ ] Human vs human play mode
-- [ ] Random player mode
-- [ ] Monte carlo tree search algorithm
-- [ ] Monte carlo graph search algorithm
-- [ ] pyx optimization
-- [ ] parallelization
+- HiveGame.py - The main game file, which contains the API interface for any other modules, and contains the whole Hive game (not the UI though!).
+- Hive.py - Contains the hive class, which contains everything related to a single hive (the pieces, their types and the location on the board, ect)
+- Movements.py - Contains routines for calculating the allowed movements of each piece type. 
+- HiveGameLogic_utils.py - Contains helper routines.
+- Graph.py - Contains a general automorphism/canonical labelling of graphs with colored nodes and edges, not currently in use. 
+- Ui.py - Contains the user interface for hive, allowing the user to vizualise the game as well as select moves on the board. 
+- Ui_board.py - Contains helper routines for Ui.py, specifically for the board. 
 
 ### Board state representation
 Hexagonal boards can be represented in many ways as detailed on: https://www.redblobgames.com/grids/hexagons/
@@ -62,17 +39,7 @@ The second method is specific for this game only, but can use clever tricks to b
 
 ### Consistent vizualization of board 
 In the previous I mentioned how the board state needs to be represented in a canonical way. However, while the canonical representation is ideal for a neural network representation it is not ideal for vizualization for humans. It can be very hard to play the game when the board is translated, rotated and mirrored in what seems like almost arbitrary fashion after each move. So in order to remedy this we need to have access to a consistent board state that does not rotate or mirror itself after each move. I find that the best way to achieve this is to keep a transformation matrix which contains the total transformations applied to the original boardstate.  
-So the transformation matrix $A = A_1 @ A_2 @ ... @ A_n$, where $A_i$ can be either a transformation matrix:
-
-A_trans = [[1 0 0 dx],[0 1 0 dy],[0 0 1 dz],[0 0 0 1]] 
-
-A rotational matrix in homogenous cube coordinates (Note that such a rotational matrix is very different from the standard rotational matrices since this is not a rotation around any of the 3 basis vectors)
-
-A_rot = ?
-
-Or a mirroring matrix in homogenous cube coordinates
-
-A_mirror = 
+So the transformation matrix $A = A_1 \cdot A_2 \cdot ... \cdot A_n$, where $A_i$ can be either a transformation matrix, A rotational matrix in homogenous cube coordinates (Note that such a rotational matrix is very different from the standard rotational matrices since this is not a rotation around any of the 3 basis vectors, see code for details.), or a mirroring matrix in homogenous cube coordinates (see code for details).
 
 This transformation matrix allows us to quickly transform the canonical board state and possible moves into a consistent vizualization state, and furthermore the inverse matrix allows us to quickly convert a selected action on the vizualized board back into a selected action on the canonical board. 
 
@@ -81,7 +48,5 @@ One final detail here is that we need to apply additional translations in order 
 ### Vizualization 
 My vizualization of hive is made with pygame, which seems suitable for the task. It allows me to easily detect the mouse position and mouse clicks, which can be used to highlight selected and hovered pieces, and highlight possible moves for a selected piece. The vizualization allows an easy overview of the board, and allows a human player to move pieces in an easy and intuitive way.
 
-
 ## Installation
-Pynauty requires linux, but otherwise the code should be able to run on any system.
-## Running it
+Pynauty requires linux and is needed by Graph.py, but Graph.py is not currently in use.
