@@ -5,12 +5,15 @@ import coloredlogs
 import numpy as np
 import torch
 
-from hive.hive_game import HiveGame
-from hive.hive_ui import UI
-from hive.nn.NNet import NNetWrapper
-from src.coach_mcgs import Coach
+from src.coach import Coach
+from src.nnet import NNetWrapper
 from src.utils import *
 import sys
+
+from tictactoe.nn.ttt_nn import TicTacToeNNet
+from tictactoe.ttt_game import TicTacToeGame
+from tictactoe.ttt_ui import TicTacToeUI
+
 sys.setrecursionlimit(1000)
 
 log = logging.getLogger(__name__)
@@ -35,14 +38,14 @@ def fix_seed(seed: int, include_cuda: bool = True) -> None:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
-args = dotdict({
+args = AttrDict({
     'numIters': 1000,
-    'numEps': 1,              # Number of complete self-play games to simulate during a new iteration.
+    'numEps': 100,              # Number of complete self-play games to simulate during a new iteration.
     'tempThreshold': 50,        #
     'updateThreshold': 0.6,     # During arena playoff, new neural net will be accepted if threshold or more of games are won.
     'maxlenOfQueue': 200000,    # Number of game examples to train the neural networks.
     'numMCTSSims': 2,          # Number of games moves for MCTS to simulate.
-    'arenaCompare': 10,         # Number of games to play during arena play to determine if new net will be accepted.
+    'arenaCompare': 50,         # Number of games to play during arena play to determine if new net will be accepted.
     'cpuct': 1,
 
     'checkpoint': './temp/',
@@ -51,6 +54,17 @@ args = dotdict({
     'numItersForTrainExamplesHistory': 20,
 
 })
+
+nn_args = AttrDict({
+    'lr': 0.001,
+    'dropout': 0.1,
+    'epochs': 10,
+    'batch_size': 64,
+    'num_channels': 64,
+    'cuda': torch.cuda.is_available()
+})
+
+
 
 
 def main():
@@ -72,11 +86,12 @@ def main():
     # # tensor([[ 2],
     # #         [12]])
 
-    log.info('Loading %s...', HiveGame.__name__)
-    g = HiveGame()
-    display = UI(g)
+    log.info('Loading %s...', TicTacToeGame.__name__)
+    g = TicTacToeGame()
+    display = TicTacToeUI(g)
     log.info('Loading %s...', NNetWrapper.__name__)
-    nnet = NNetWrapper(g)
+    nnet = TicTacToeNNet(g,nn_args)
+    model = NNetWrapper(g,nnet,nn_args)
 
     if args.load_model:
         log.info('Loading checkpoint "%s/%s"...', args.load_folder_file[0], args.load_folder_file[1])
@@ -85,7 +100,7 @@ def main():
         log.warning('Not loading a checkpoint!')
 
     log.info('Loading the Coach...')
-    c = Coach(g, nnet, args,display=display)
+    c = Coach(g, model, args,display=display)
 
     if args.load_model:
         log.info("Loading 'trainExamples' from file...")

@@ -32,7 +32,7 @@ class Arena():
     @property
     def nplayers(self):
         return len(self.players)
-    def playGame(self,players=None,save_images=True):
+    def playGame(self,players=None,save_images=False):
         """
         Plays a single game.
         Returns:
@@ -48,8 +48,8 @@ class Arena():
             players = self.players
         game = self.game
         if self.display is not None:
-            self.display.update_board(game)
-            self.display()
+            self.display.sync_ui_to_game(game)
+            self.display.redraw_game()
             pygame.display.update()
 
         actionhist = []
@@ -60,8 +60,8 @@ class Arena():
             actionhist.append(action)
             if self.display is not None:
                 pygame.event.get()
-                self.display.update_board(game)
-                self.display()
+                self.display.sync_ui_to_game(game)
+                self.display.redraw_game()
                 pygame.display.update()
                 self.display.clock.tick(30)
                 sleep(0.01)
@@ -88,6 +88,7 @@ class Arena():
                 else:
                     draws += 1
                 self.resetGame()
+            print(f'Wins (contender/champion): {wins[0]}/{wins[1]} - draws {draws}')
             self.players.rotate(1)
         return wins,draws
 

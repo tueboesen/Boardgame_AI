@@ -156,7 +156,7 @@ class MCGS:
         return g
 
     def viz(self,game):
-        s = game.string_rep()
+        s = game.canonical_string_rep()
 
         g = graphviz.Digraph(comment='The Round Table')
         # dot.node(s,label = "<1. <br/> 2. <br/>  3. <br/>  4. <br/>  .... <br/>", color="blue", style="dashed")
@@ -184,7 +184,7 @@ class MCGS:
             self.backprop_reward(hist_state,hist_player,hist_action_idx,reward)
         # print(f"max depth: {self.max_depth}")
         # self.viz(game)
-        s = game.string_rep()
+        s = game.canonical_string_rep()
         tree_policy = self.child_visits[s] / self.visits[s]
         tree_policy = torch.nn.functional.softmax(tree_policy/self.temperature,dim=0)
         if self.exploit:

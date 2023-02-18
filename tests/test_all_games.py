@@ -20,7 +20,7 @@
 
 import unittest
 
-from src import Arena
+from src import arena
 from temp.MCTS import MCTS
 
 from othello.OthelloGame import OthelloGame
@@ -28,7 +28,7 @@ from othello.OthelloPlayers import RandomPlayer
 from othello.pytorch.NNet import NNetWrapper as OthelloPytorchNNet
 from othello.keras.NNet import NNetWrapper as OthelloKerasNNet
 
-from tictactoe.TicTacToeGame import TicTacToeGame
+from tictactoe.ttt_game import TicTacToeGame
 from tictactoe.keras.NNet import NNetWrapper as TicTacToeKerasNNet
 
 from tictactoe_3d.TicTacToeGame import TicTacToeGame as TicTacToe3DGame

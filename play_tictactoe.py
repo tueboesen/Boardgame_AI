@@ -1,14 +1,16 @@
 import logging
 
 import coloredlogs
+import pygame
 
-from hive.hive_game import HiveGame
 from src.arena import Arena
-from hive.nn.NNet import NNetWrapper
-from hive.hive_ui import UI
-from src.players import RandomPlayer
+from src.players import RandomPlayer, HumanPlayer
 from src.utils import *
 import sys
+
+from tictactoe.ttt_game import TicTacToeGame
+from tictactoe.ttt_ui import TicTacToeUI
+
 sys.setrecursionlimit(1000)
 
 log = logging.getLogger(__name__)
@@ -34,17 +36,9 @@ args = dotdict({
 
 def main():
 
-    log.info('Loading %s...', HiveGame.__name__)
-    g = HiveGame()
-    display = UI(g)
-
-    if args['opp'] == 'nn':
-        log.info('Loading %s...', NNetWrapper.__name__)
-        nnet = NNetWrapper(g)
-        assert args.load_model
-        log.info('Loading checkpoint "%s/%s"...', args.load_folder_file[0], args.load_folder_file[1])
-        nnet.load_checkpoint(args.load_folder_file[0], args.load_folder_file[1])
-
+    log.info('Loading %s...', TicTacToeGame.__name__)
+    g = TicTacToeGame()
+    display = TicTacToeUI(g)
     # p1 = HumanPlayer(display)
     p1 = RandomPlayer(display)
     p2 = RandomPlayer(display)

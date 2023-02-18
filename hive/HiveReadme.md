@@ -49,4 +49,4 @@ One final detail here is that we need to apply additional translations in order 
 My vizualization of hive is made with pygame, which seems suitable for the task. It allows me to easily detect the mouse position and mouse clicks, which can be used to highlight selected and hovered pieces, and highlight possible moves for a selected piece. The vizualization allows an easy overview of the board, and allows a human player to move pieces in an easy and intuitive way.
 
 ## Installation
-Pynauty requires linux and is needed by Graph.py, but Graph.py is not currently in use.
+Pynauty requires linux and is needed by Graph.py, but Graph.py is not currently in use. Everything else should be installable on either windows or linux.

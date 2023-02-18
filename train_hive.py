@@ -5,9 +5,9 @@ import coloredlogs
 import numpy as np
 import torch
 
-from hive.HiveGame import HiveGame
-from hive.Ui import UI
-from src.Coach import Coach
+from hive.hive_game import HiveGame
+from hive.hive_ui import UI
+from src.coach import Coach
 from hive.nn.NNet import NNetWrapper
 from src.utils import *
 import sys

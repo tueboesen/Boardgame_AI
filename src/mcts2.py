@@ -14,7 +14,7 @@ class Node:
     """
     A Tree node that contains the current board state, the possible actions from this state (child states), the number of visits to each of those as well as their expected outcomes.
     """
-    def __init__(self, mcts, action, done, reward, game, parent=None):
+    def __init__(self, mcts, action, game_over, reward, game, parent=None):
         # self.game = parent.game
         # self.game = game
         self.game = game
@@ -31,14 +31,15 @@ class Node:
         self.child_total_value = torch.zeros([self.number_of_actions])  # Q
         self.child_priors = torch.empty([self.number_of_actions])  # P
         self.child_number_visits = torch.zeros([self.number_of_actions])  # N
+        self.child_game_over = torch.zeros([self.number_of_actions],dtype=torch.bool)
         # self.valid_actions = obs["action_mask"].astype(np.bool)
 
         self.reward = reward
-        self.done = done
-        self.obs = self.game.rep_nn()
+        self.game_over = game_over
+        self.obs = self.game.nn_rep()
 
-    def __repr__(self) -> str:
-        return f"Turn={self.game.turn},player={'white' if self.game.whites_turn else 'black'}, visits={self.number_visits}, actions={self.child_number_visits}, child={self.child_priors}"
+    # def __repr__(self) -> str:
+    #     return f"Turn={self.game.turn},player={'white' if self.game.whites_turn else 'black'}, visits={self.number_visits}, actions={self.child_number_visits}, child={self.child_priors}"
 
 
     @property
@@ -70,16 +71,19 @@ class Node:
         """
         :return: action
         """
-        child_score = self.child_Q() + self.mcts.c_puct * self.child_U()
-        idx = torch.argmax(child_score)
+        Q = self.child_total_value / (1 + self.child_number_visits)
+        U = math.sqrt(self.number_visits)* self.child_priors/ (1 + self.child_number_visits)
+        child_score = Q + self.mcts.c_puct * U
+        idx = torch.argmax(child_score).item()
         return idx
 
     def select(self):
         current_node = self
+        best_action = None
         while current_node.is_expanded:
             best_action = current_node.best_action()
             current_node = current_node.get_child(best_action)
-        return current_node
+        return current_node, best_action
 
     def expand(self, child_priors):
         self.is_expanded = True
@@ -94,16 +98,16 @@ class Node:
             game_action = self.valid_actions[action]
             game_next.perform_action(game_action)
 
-            self.children[action.item()] = Node(
+            self.children[action] = Node(
                 mcts=self.mcts,
                 action=action,
-                done=game_next.game_over,
-                reward=game_next.reward(),
+                game_over=game_next.game_over,
+                reward=game_next.reward,
                 game=game_next,
                 parent=self,
             )
             #mcts, action, done, reward, board, parent=None
-        return self.children[action.item()]
+        return self.children[action]
 
     def backup(self, value,player):
         current = self
@@ -115,6 +119,7 @@ class Node:
                 sign = -1
             current.total_value += sign * value
             current = current.parent
+            value = value *0.5
 
 
 class RootParentNode:
@@ -129,8 +134,8 @@ class RootParentNode:
 
 
 mcts_config = {
-    "puct_coefficient": 1.0,
-    "num_simulations": 30,
+    "puct_coefficient": 1.41,
+    "num_simulations": 20,
     "temperature": 1.5,
     "dirichlet_epsilon": 0.25,
     "dirichlet_noise": 0.03,
@@ -147,23 +152,32 @@ class MCTS:
     Note that this algorithm
     """
 
-    def __init__(self, game, model, mcts_param=mcts_config):
+    def __init__(self, game, model, mcts_param=mcts_config,rep=None,play_to_win=False):
         self.model = model
         self.game = game
         self.temperature = mcts_param["temperature"]
         self.dir_epsilon = mcts_param["dirichlet_epsilon"]
         self.dir_noise = mcts_param["dirichlet_noise"]
         self.num_sims = mcts_param["num_simulations"]
-        self.exploit = mcts_param["argmax_tree_policy"]
+        self.exploit = play_to_win
         self.add_dirichlet_noise = mcts_param["add_dirichlet_noise"]
         self.c_puct = mcts_param["puct_coefficient"]
-        node = Node(mcts=self, action=None, done=False, reward=0, game=game, parent=RootParentNode(self.game))
+        node = Node(mcts=self, action=None, game_over=False, reward=0, game=game, parent=RootParentNode(self.game))
         self.node = node
+        self.node_orig = node
         self.actionhist = []
+        self.rep = rep
+
+    def __repr__(self):
+        return f"{self.rep}"
+
+    def __str__(self):
+        return f"{self.rep}"
 
     def reset(self):
-        node = Node(mcts=self, action=None, done=False, reward=0, game=self.game, parent=RootParentNode(self.game))
+        node = Node(mcts=self, action=None, game_over=False, reward=0, game=self.game, parent=RootParentNode(self.game))
         self.node = node
+        # self.node = self.node_orig
         self.actionhist = []
 
     def update_node(self,actionhist):
@@ -182,7 +196,7 @@ class MCTS:
         self.node = node
         self.actionhist = copy.deepcopy(actionhist)
         return
-    def compute_action(self,game):
+    def compute_action(self):
         """
         When called, this routine performs a number of simulation equal to self.num_sims.
         Each simulation starts from the game state defined in self.node and explores from that state until a leaf node is found (a node that has not previously been explored)
@@ -191,9 +205,12 @@ class MCTS:
         """
         node = self.node
         for _ in range(self.num_sims):
-            leaf = node.select()
-            if leaf.done:
-                value = leaf.reward
+            leaf,parent_action = node.select()
+            if leaf.game_over:
+                reward = leaf.reward
+                value = reward[leaf.game.previous_player]
+                if value > 0:
+                    leaf.parent.child_game_over[parent_action] = True
             else:
                 child_priors, value = self.model.predict(leaf.obs)
                 valids = leaf.valid_actions
@@ -207,16 +224,26 @@ class MCTS:
                 leaf.expand(child_priors)
             leaf.backup(value,leaf.game.current_player)
 
+
         # Tree policy target (TPT)
-        tree_policy = node.child_number_visits / node.number_visits
-        tree_policy = torch.nn.functional.softmax(tree_policy/self.temperature,dim=0)
+        winning_moves = node.child_game_over.nonzero()
+        if len(winning_moves) > 0:
+            action_idx = winning_moves[0].item()
+            tree_policy = torch.zeros_like(node.child_number_visits)
+            tree_policy[action_idx] = 1.0
+        else:
+            tree_policy = node.child_number_visits / node.child_number_visits.sum()
+        # tree_policy = torch.nn.functional.softmax(tree_policy/self.temperature,dim=0)
         # tree_policy = tree_policy / torch.max(tree_policy)  # to avoid overflows when computing softmax
         # tree_policy = np.power(tree_policy, self.temperature)
         # tree_policy = tree_policy / torch.sum(tree_policy)
         if self.exploit:
             # if exploit then choose action_idx that has the maximum
             # tree policy probability
-            action_idx = torch.argmax(tree_policy)
+            # action_idx = torch.argmax(tree_policy).item()
+            action_indices = (tree_policy == tree_policy.max()).nonzero()[:,0]
+            a = torch.randint(action_indices.shape[0],(1,))
+            action_idx = action_indices[a].item()
         else:
             # otherwise sample an action_idx according to tree policy probabilities
             action_idx = np.random.choice(np.arange(len(node.valid_actions)), p=tree_policy.numpy())

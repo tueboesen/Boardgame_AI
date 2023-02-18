@@ -3,14 +3,15 @@ import itertools
 
 import torch
 
-from hive.Hive import Hive
-from hive.HiveGameLogic_utils import piece_symbol, generate_board, bitmap_get_neighbors, generate_conv_board, \
+from Templates.game import Game
+from hive.hive import Hive
+from hive.hive_gamelogic import piece_symbol, generate_board, bitmap_get_neighbors, generate_conv_board, \
     generate_graph, find_moveable_nodes, DIRECTIONS
-from hive.Movements import calculate_moves
-from hive.Ui import TransformMatrix
+from hive.movements import calculate_moves
+from hive.hive_ui import TransformMatrix
 
 
-class HiveGame():
+class HiveGame(Game):
     """
     Contains everything happening on the board in hive.
     """
@@ -21,18 +22,27 @@ class HiveGame():
         self.turn = 1
         self.whites_turn = True
         self.board_len = len(self.hive_white) + len(self.hive_black) + 2
-        self.board_size = (self.board_len, self.board_len)
         self.winner = None
-        self.game_over = False
+        self._game_over = False
         self.npieces_per_player = len(self.hive_white)
         self.calculate_valid_moves()
         self.canon_actions = None
-        self.action_size = self.npieces_per_player * self.board_len * self.board_len
         self.transform = TransformMatrix()
         self.hist = ['start']
 
     def __repr__(self) -> str:
         return f"Turn={self.turn},player={'white' if self.whites_turn else 'black'}"
+
+    @property
+    def action_size(self):
+        return self.npieces_per_player * self.board_len * self.board_len
+    @property
+    def board_size(self):
+        return (self.board_len, self.board_len)
+
+    @property
+    def game_over(self):
+        return self._game_over
 
     @property
     def summary(self):
@@ -51,10 +61,6 @@ class HiveGame():
     def hive_opp(self):
         return self.hive_black if self.whites_turn else self.hive_white
 
-    @property
-    def possible_moves(self):
-        return self.hive_player.moves.view(-1).nonzero()
-
     def reset(self):
         self.hive_white = Hive(white=True)
         self.hive_black = Hive(white=False)
@@ -62,9 +68,7 @@ class HiveGame():
         self.turn = 1
         self.whites_turn = True
         self.board_len = len(self.hive_white) + len(self.hive_black) + 2
-        self.board_size = (self.board_len, self.board_len)
         self.winner = None
-        self.game_over = False
         self.npieces_per_player = len(self.hive_white)
         self.calculate_valid_moves()
         self.canon_actions = None
@@ -85,7 +89,7 @@ class HiveGame():
             hive.qr[hive.in_play] = self.transform.forward(hive.qr[hive.in_play], A)
 
 
-    def rep_nn(self):
+    def nn_rep(self):
         """
         This should always be from the perspective of the player
         """
@@ -191,9 +195,9 @@ class HiveGame():
                         break
                 if surrounded:
                     hive.lost = True
-                    self.game_over = True
-        if self.hist.count(self.string_rep()) >= 3:
-            self.game_over = True
+                    self._game_over = True
+        if self.hist.count(self.canonical_string_rep()) >= 3:
+            self._game_over = True
         #
         # if self.turn >= 100:
         #     self.game_over = True
@@ -456,7 +460,7 @@ class HiveGame():
             for hive in self.hives:
                 hive.qr = hive.qr_old.clone()
             self.translate_rotate_mirror_matrix(idx_sel,[(hp,hp.qr),(ho,ho.qr)],save_transform=save_transform)
-            string = self.string_rep()
+            string = self.canonical_string_rep()
             strings.append(string)
 
 
@@ -687,7 +691,7 @@ class HiveGame():
 
 
 
-    def string_rep(self):
+    def canonical_string_rep(self):
         hives = [self.hive_player, self.hive_opp]
         string = ""
         for hive in hives:

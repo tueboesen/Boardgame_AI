@@ -1,6 +1,6 @@
 import torch
 
-from hive.HiveGameLogic_utils import PIECES_PER_PLAYER, piece_id, BoolTensor
+from hive.hive_gamelogic import PIECES_PER_PLAYER, piece_id, BoolTensor
 
 
 class Hive:

@@ -6,9 +6,9 @@ import torch
 from pygame import gfxdraw
 from pygame import time
 
-from hive.HiveGameLogic_utils import piece_symbol, axial_to_cube_ext
-from hive.UiConstants import *
-from hive.Ui_board import Hexes
+from hive.hive_gamelogic import piece_symbol, axial_to_cube_ext
+from hive.hive_ui_constants import *
+from hive.hive_ui_board import Hexes
 
 
 class UI:
@@ -65,11 +65,8 @@ class UI:
             self.hexes_hives.append(HexCoordinates(hive, self.screen))
         self.create_board()
         self.update_board(game)
-        self.__call__()
-
-
-    def __call__(self):
         self.redraw_board()
+
     def calculate_xy_outer(self, xy):
         n = torch.arange(6)
         x = xy[:,0,None] + (self.hex_radius + self.hex_ios) * torch.cos(pi / 2 + 2 * pi * n / 6)[None,:]

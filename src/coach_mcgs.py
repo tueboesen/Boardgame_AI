@@ -10,9 +10,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from src.Arena import Arena
-from src.MCGS import MCGS
-from src.Players import MCTSNNPlayer
+from src.arena import Arena
+from src.mcgs import MCGS
+from src.players import MCTSNNPlayer
 
 log = logging.getLogger(__name__)
 
