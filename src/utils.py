@@ -1,3 +1,9 @@
+import random
+
+import numpy as np
+import torch
+
+
 class AverageMeter(object):
     """From https://github.com/pytorch/examples/blob/master/imagenet/main.py"""
 
@@ -18,11 +24,30 @@ class AverageMeter(object):
 
 
 class AttrDict(dict):
+    """
+    A dictionary that acts as an attribute so you can write dict_instance.key rather than dict_instance['key']
+    """
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-#
-# class dotdict(dict):
-#     def __getattr__(self, name):
-#         return self[name]
+
+
+def fix_seed(seed: int, include_cuda: bool = True) -> None:
+    """
+    Set the seed in order to create reproducible results, note that setting the seed also does it for gpu calculations, which slows them down.
+    :param seed: an integer to fix the seed to
+    :param include_cuda: whether to fix the seed for cuda calculations as well
+    :return:
+    """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    # if you are using GPU
+    if include_cuda:
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
+

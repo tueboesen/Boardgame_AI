@@ -55,7 +55,7 @@ class Arena():
         actionhist = []
         while not game.game_over:
             player = players[game.current_player]
-            action = player.determine_action(game,actionhist)
+            action = player.determine_action(game)
             game.perform_action(action)
             actionhist.append(action)
             if self.display is not None:
