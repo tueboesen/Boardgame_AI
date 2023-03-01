@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 import time
@@ -16,10 +17,10 @@ import torch.nn.functional as F
 
 
 class NNetWrapper:
-    def __init__(self, game,neuralnet,args):
+    def __init__(self, game, neuralnet,args):
         self.nnet = neuralnet
         pytorch_total_params = sum(p.numel() for p in self.nnet.parameters())
-        print(f"Number of parameters: {pytorch_total_params}")
+        # print(f"Number of parameters: {pytorch_total_params}")
         self.board_x, self.board_y = game.board_size
         self.action_size = game.action_size
         self.args = args
@@ -113,8 +114,9 @@ class NNetWrapper:
     # def loss_v(self, targets, outputs):
     #     return torch.sum((targets - outputs.view(-1)) ** 2) / targets.size()[0]
 
-    def save_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
-        filepath = os.path.join(folder, filename)
+    def save_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar', ext='.model'):
+        file = f"{filename}{ext}"
+        filepath = os.path.join(folder, file)
         if not os.path.exists(folder):
             print("Checkpoint Directory does not exist! Making directory {}".format(folder))
             os.mkdir(folder)
@@ -124,11 +126,11 @@ class NNetWrapper:
             'state_dict': self.nnet.state_dict(),
         }, filepath)
 
-    def load_checkpoint(self, folder='checkpoint', filename='checkpoint.pth.tar'):
-        # https://github.com/pytorch/examples/blob/master/imagenet/main.py#L98
-        filepath = os.path.join(folder, filename)
-        if not os.path.exists(filepath):
-            raise ("No model in path {}".format(filepath))
+    def load_checkpoint(self, folder='checkpoint', filename='', ext='.model'):
+        file = get_file(folder, filename, ext)
+        if not os.path.exists(file):
+            raise (f"No model in path {file}")
         map_location = None if self.args['cuda'] else 'cpu'
-        checkpoint = torch.load(filepath, map_location=map_location)
+        checkpoint = torch.load(file, map_location=map_location)
         self.nnet.load_state_dict(checkpoint['state_dict'])
+        return file

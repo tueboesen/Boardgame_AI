@@ -6,12 +6,13 @@ import torch
 from pygame import gfxdraw
 from pygame import time
 
+from Templates.ui import UI
 from hive.hive_gamelogic import piece_symbol, axial_to_cube_ext
 from hive.hive_ui_constants import *
 from hive.hive_ui_board import Hexes
 
 
-class UI:
+class HiveUI(UI):
     """
     This is the UI for the game hive.
 
@@ -32,7 +33,7 @@ class UI:
         # assert 1 < self.board_size <= 26
         # self.hive_white = game.board.hive_white
         # self.hive_black = game.board.hive_black
-        self.clock = time.Clock()
+        # self.clock = time.Clock()
         self.hex_radius = HEX_RADIUS
         self.hex_ios = HEX_INNER_OUTER_SPACING
         self.x_offset = 4 * HEX_RADIUS + 60
@@ -64,8 +65,8 @@ class UI:
         for hive in game.hives:
             self.hexes_hives.append(HexCoordinates(hive, self.screen))
         self.create_board()
-        self.update_board(game)
-        self.redraw_board()
+        self.sync_ui_to_game(game)
+        self.redraw_game()
 
     def calculate_xy_outer(self, xy):
         n = torch.arange(6)
@@ -137,7 +138,7 @@ class UI:
         return
 
 
-    def update_board(self,game):
+    def sync_ui_to_game(self,game):
         self.summary = game.summary
         self.current_player = copy(game.current_player)
         self.piece_selected = None
@@ -162,7 +163,7 @@ class UI:
         self.moves = torch.cat((moves[:,:1],qr_viz_moves),dim=1)
 
 
-    def redraw_board(self):
+    def redraw_game(self):
         self.screen.fill(self.gray)
         self.draw_text_summary()
         self.hexes_board.draw_hexes()
@@ -203,6 +204,11 @@ class UI:
 
     def get_true_coordinates(self, node: int):
         return int(node / self.board_size), node % self.board_size
+
+    def get_user_input(self):
+        self.get_mouse_hover()
+        action = self.handle_mouse_click()
+        return action
 
     def get_mouse_hover(self):
         """

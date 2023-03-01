@@ -39,6 +39,10 @@ class TicTacToeGame(Game):
         return self.n*self.n
 
     @property
+    def number_of_players(self):
+        return 2
+
+    @property
     def current_player(self):
         p = 0 if self.player1_turn else 1
         return p

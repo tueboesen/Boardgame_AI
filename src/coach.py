@@ -1,9 +1,10 @@
 import copy
 import logging
 import os
+import pickle
 import sys
+import glob
 from collections import deque
-from pickle import Pickler, Unpickler
 from random import shuffle
 
 import numpy as np
@@ -13,9 +14,11 @@ from tqdm import tqdm
 from src.arena import Arena
 from src.mcts import MCTS
 from src.players import MCTSNNPlayer
+from src.utils import get_file
 
 log = logging.getLogger(__name__)
 
+from matplotlib import pyplot as plt
 
 class Coach():
     """
@@ -23,18 +26,26 @@ class Coach():
     in Game and NeuralNet.
     """
 
-    def __init__(self, game, nnet, coach_args=None, display=None,mcts_args=None):
+    def __init__(self, game, nnet, display=None,args=None):
         self.game = game
         self.nnet = nnet
         self.pnet = copy.deepcopy(nnet)
-        self.coach_args = coach_args
-        self.mcts_args = mcts_args
+        self.args = args
+        self.coach_args = args.coach
+        self.mcts_args = args.mcts
         self.display = display
-        self.mcts = MCTS(self.nnet,mcts_args)
+        self.mcts = MCTS(self.nnet,self.mcts_args)
         self.trainExamplesHistory = []  # history of examples from args.numItersForTrainExamplesHistory latest iterations
         self.skipFirstSelfPlay = False  # can be overriden in loadTrainExamples()
         self.self_play_winners = []
         self.self_play_draws = 0
+        self.wins_champion = []
+        self.start_iter = 0
+        self.draws = []
+        self.use_dummy_nn_for_first_iteration = True
+        if self.args.load_previous:
+            self.mcts.load(self.args.folder)
+
 
     def self_play_game(self):
         """
@@ -55,7 +66,7 @@ class Coach():
         trainExamples = []
         game = self.game
         episodeStep = 0
-        self.mcts.reset()
+        # self.mcts.reset()
 
         while True:
             episodeStep += 1
@@ -86,42 +97,37 @@ class Coach():
         only if it wins >= updateThreshold fraction of games.
         """
 
-        for i in range(1, self.coach_args.numIters + 1):
-            # bookkeeping
+        for i in range(self.start_iter, self.coach_args.numIters):
             log.info(f'Starting Iter #{i} ...')
-            # examples of the iteration
-            self.mcts = MCTS(self.nnet,mcts_param=self.mcts_args)  # reset search tree
+            if self.use_dummy_nn_for_first_iteration and i == 0:
+                self.mcts.use_dummy_nn = True
+            else:
+                self.mcts.use_dummy_nn = False
             self.self_play_winners = [0, 0]
             self.self_play_draws = 0
-            if not self.skipFirstSelfPlay or i > 1:
-                iterationTrainExamples = deque([], maxlen=self.coach_args.maxlenOfQueue)
-                c = 0
+            iterationTrainExamples = deque([], maxlen=self.coach_args.maxlenOfQueue)
+            if not self.skipFirstSelfPlay:
                 for _ in tqdm(range(self.coach_args.numEps), desc="Self Play"):
                     iterationTrainExamples += self.self_play_game()
-                    # c += 1
-                    # if c>1:
-                    #     quit()
-
-                # save the iteration examples to the history 
                 self.trainExamplesHistory.append(iterationTrainExamples)
-            print(f"Self-play winners: player 0: {self.self_play_winners[0]}, player 1: {self.self_play_winners[1]}, draws: {self.self_play_draws}")
+                print(f"Self-play winners: player 0: {self.self_play_winners[0]}, player 1: {self.self_play_winners[1]}, draws: {self.self_play_draws}")
             if len(self.trainExamplesHistory) > self.coach_args.numItersForTrainExamplesHistory:
                 log.warning(
                     f"Removing the oldest entry in trainExamples. len(trainExamplesHistory) = {len(self.trainExamplesHistory)}")
                 self.trainExamplesHistory.pop(0)
             # backup history to a file
             # NB! the examples were collected using the model from the previous iteration, so (i-1)  
-            self.saveTrainExamples(i - 1)
+            self.saveTrainExamples(i)
 
             # shuffle examples before training
             trainExamples = []
             for e in self.trainExamplesHistory:
                 trainExamples.extend(e)
-            shuffle(trainExamples)
+            # shuffle(trainExamples)
 
             # training new network, keeping a copy of the old one
-            self.nnet.save_checkpoint(folder=self.coach_args.checkpoint, filename='temp.pth.tar')
-            self.pnet.load_checkpoint(folder=self.coach_args.checkpoint, filename='temp.pth.tar')
+            self.nnet.save_checkpoint(folder=self.args.folder, filename='temp.pth.tar')
+            self.pnet.load_checkpoint(folder=self.args.folder, filename='temp.pth.tar')
             pmcts = MCTS(self.pnet, mcts_param=self.mcts_args, description='previous', play_to_win=True)
 
             self.nnet.train(trainExamples)
@@ -132,48 +138,66 @@ class Coach():
             player_contender = MCTSNNPlayer(nmcts,description='contender')
             players = [player_contender, player_champion]
             arena = Arena(players, self.game, self.display)
-            # arena = Arena(lambda x: np.argmax(pmcts.getActionProb(x, temp=0)),
-            #               lambda x: np.argmax(nmcts.getActionProb(x, temp=0)), self.game)
             wins, draws = arena.playGames(self.coach_args.arenaCompare)
 
 
             log.info(f'Wins (contender/champion): {wins[0]}/{wins[1]} - draws {draws}')
             if (sum(wins) == 0) or ((wins[0] / sum(wins)) < self.coach_args.updateThreshold):
                 log.info('REJECTING NEW MODEL')
-                self.nnet.load_checkpoint(folder=self.coach_args.checkpoint, filename='temp.pth.tar')
+                self.nnet.load_checkpoint(folder=self.args.folder, filename='temp.pth.tar')
             else:
                 log.info('ACCEPTING NEW MODEL')
-                self.nnet.save_checkpoint(folder=self.coach_args.checkpoint, filename=self.getCheckpointFile(i))
-                self.nnet.save_checkpoint(folder=self.coach_args.checkpoint, filename='best.pth.tar')
+                self.nnet.save_checkpoint(folder=self.args.folder, filename=self.getCheckpointFile(i))
+                self.nnet.save_checkpoint(folder=self.args.folder, filename='best.pth.tar')
                 log.info('Flushing training examples')
                 self.trainExamplesHistory = []
+                self.mcts = MCTS(self.nnet, mcts_param=self.mcts_args)  # reset search tree
 
+            self.mcts.save(self.args.folder,self.getCheckpointFile(i))
+            self.wins_champion.append(wins[1])
+            self.draws.append(draws)
+            self.plot_win_loss()
+            self.skipFirstSelfPlay = False
 
     def getCheckpointFile(self, iteration):
-        return 'checkpoint_' + str(iteration) + '.pth.tar'
+        return f'checkpoint_{iteration:03d}'
 
     def saveTrainExamples(self, iteration):
-        folder = self.coach_args.checkpoint
+        folder = self.args.folder
         if not os.path.exists(folder):
             os.makedirs(folder)
         filename = os.path.join(folder, self.getCheckpointFile(iteration) + ".examples")
+        torch.save(self.trainExamplesHistory,filename)
         with open(filename, "wb+") as f:
-            Pickler(f).dump(self.trainExamplesHistory)
-        f.closed
+            pickle.dump([iteration, self.trainExamplesHistory], f)
+        return
 
-    def loadTrainExamples(self):
-        modelFile = os.path.join(self.coach_args.load_folder_file[0], self.coach_args.load_folder_file[1])
-        examplesFile = modelFile + ".examples"
-        if not os.path.isfile(examplesFile):
-            log.warning(f'File "{examplesFile}" with trainExamples not found!')
+
+    def loadTrainExamples(self,folder,filename='', ext='.examples'):
+        file = get_file(folder, filename, ext)
+        if not os.path.isfile(file):
+            log.warning(f'File "{file}" with trainExamples not found!')
             r = input("Continue? [y|n]")
             if r != "y":
                 sys.exit()
         else:
-            log.info("File with trainExamples found. Loading it...")
-            with open(examplesFile, "rb") as f:
-                self.trainExamplesHistory = Unpickler(f).load()
-            log.info('Loading done!')
-
-            # examples based on the model were already collected (loaded)
+            log.info(f"Training examples found, loading: {file}")
+            # self.trainExamplesHistory = torch.load(file)
+            with open(file, "rb") as f:
+                iteration, self.trainExamplesHistory = pickle.load(f)
+            self.start_iter = iteration
             self.skipFirstSelfPlay = True
+
+    def plot_win_loss(self):
+        plt.figure(1)
+        plt.clf()
+        # f, (ax1) = plt.subplots(1, 1)
+        ngames = self.coach_args.arenaCompare
+        losses = [ngames-wins-draws for wins,draws in zip(self.wins_champion,self.draws)]
+        plt.plot(self.wins_champion)
+        plt.plot(losses)
+        plt.plot(self.draws)
+        plt.legend(["wins",'loss','draws'])
+        plt.pause(0.5)
+
+

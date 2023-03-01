@@ -4,11 +4,16 @@ https://github.com/brilee/python_uct/blob/master/numpy_impl.py
 """
 import collections
 import copy
+import glob
 import math
+import os
 from typing import Optional
 
 import torch
 import numpy as np
+
+from hive.hive_utils import draw_board
+from src.utils import get_file, rand_argmax
 
 
 class Node:
@@ -16,7 +21,8 @@ class Node:
     A Tree node that contains the current board state, the possible actions from this state (child states), the number of visits to each of those as well as their expected outcomes.
     """
     def __init__(self, game):
-        self.game = game
+        self.game = copy.deepcopy(game)
+        # self.game_backup = copy.deepcopy(game)
         self.id = game.canonical_string_rep()
         self.valid_actions = game.get_valid_moves()
         self.game_over = game.game_over
@@ -62,11 +68,12 @@ class MCTS:
         self.dir_noise = mcts_param["dirichlet_noise"]
         self.num_sims = mcts_param["num_simulations"]
         self.exploit = play_to_win
-        self.decay = 0.9
+        self.decay = mcts_param['decay']
         self.add_dirichlet_noise = mcts_param["add_dirichlet_noise"]
         self.c_puct = mcts_param["puct_coefficient"]
         self.nodes = {}
         self.description = description
+        self.use_dummy_nn = False
         # self.tmp_hist = [] # should contain elements of type (s, a, s_next), where s is the canonical representation of a node, a is the action from that node which brings you to s_next.
 
     def __repr__(self):
@@ -82,6 +89,18 @@ class MCTS:
         """
         self.nodes = {}
 
+    def save(self,folder,filename,ext='.mcts'):
+        file = os.path.join(folder,f"{filename}{ext}")
+        torch.save(self.nodes,file)
+        return
+
+    def load(self,folder,filename='',ext='.mcts'):
+        file = get_file(folder, filename, ext)
+        if not os.path.exists(file):
+            raise (f"No model in path {file}")
+        self.nodes = torch.load(file)
+
+
     def find_leaf(self,node : Node) -> (Node, list):
         """
         Starting from node, it searches through the tree structure until it finds a leaf node (meaning a node that hasn't been explored before, or that ends the game)
@@ -94,21 +113,38 @@ class MCTS:
             s = node.id
             if s in self.nodes and (not self.nodes[s].game_over):
                 node = self.nodes[s]
-                action_idx = self.select_action_idx(node)
+                visited = self.detect_previous_visit(node,hist)
+                action_idx = self.select_action_idx(node, visited)
                 node = self.select_childnode(node,action_idx)
                 hist.append((s,action_idx,node.id))
             else:
                 leaf = node
         return leaf, hist
 
-    def select_action_idx(self,node: Node) -> int:
+    def detect_previous_visit(self,node: Node,hist: list) -> torch.LongTensor:
+        """
+        This function detects whether the node has previously been visited during this search.
+        This is important since we want to prevent an infinite loop during the find leaf phase.
+        This will only happen in games where actions can repeat themselves, and where the representation does not include turns
+        """
+        s = node.id
+        v = torch.zeros_like(node.child_visits)
+        for (n,action,_) in hist:
+            if n == s:
+                v[action] += 1
+        return v
+
+    def select_action_idx(self,node: Node, visited: Optional[torch.LongTensor]=None) -> int:
         """
         Selects an action_idx based on the standard MCTS selection criteria, which balances exploration and exploitation.
         """
         Q = node.child_values / (1 + node.child_visits)
         U = math.sqrt(node.child_visits.sum()+1)* node.child_prior/ (1 + node.child_visits)
         child_score = Q + self.c_puct * U
-        idx = torch.argmax(child_score).item()
+        if visited is not None:
+            child_score /= (visited + 1)
+        idx = int(rand_argmax(child_score))
+        # idx = torch.argmax(child_score).item()
         return idx
 
     def select_childnode(self, node: Node, action_idx: int) -> Node:
@@ -123,10 +159,11 @@ class MCTS:
             game = node.game
             game_next = copy.deepcopy(game)
             action = node.valid_actions[action_idx].item()
+            assert (node.valid_actions == game.get_valid_moves()).all()
             game_next.perform_action(action)
             node = Node(game_next)
+            assert (game_next.get_valid_moves() == node.valid_actions).all()
         return node
-
 
     def backup(self,value: torch.FloatTensor,cp: int, hist: list):
         """
@@ -177,10 +214,14 @@ class MCTS:
             if leaf.game_over:
                 value = leaf.value
             else:
-                child_priors, value = self.model.predict(leaf.nn_rep)
-                valids = leaf.valid_actions
-                child_priors = child_priors[valids]
-                child_priors = child_priors / child_priors.sum()
+                if self.use_dummy_nn:
+                    child_priors = torch.ones_like(leaf.valid_actions) / len(leaf.valid_actions)
+                    value = 0.0
+                else:
+                    child_priors, value = self.model.predict(leaf.nn_rep)
+                    valids = leaf.valid_actions
+                    child_priors = child_priors[valids]
+                    child_priors = child_priors / child_priors.sum()
                 # if self.add_dirichlet_noise:
                 #     child_priors = (1 - self.dir_epsilon) * child_priors
                 #     torch.ones_like(child_priors)*self.dir_noise

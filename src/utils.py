@@ -1,3 +1,5 @@
+import glob
+import os
 import random
 
 import numpy as np
@@ -51,3 +53,15 @@ def fix_seed(seed: int, include_cuda: bool = True) -> None:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
+def get_file(folder,filename,ext):
+    if filename == '':
+        files = sorted(glob.glob(f'{folder}/*{ext}'))
+        if len(files) > 0:
+            file = files[-1]
+    else:
+        file = os.path.join(folder, f'{filename}{ext}')
+    return file
+
+def rand_argmax(tens):
+    max_inds, = torch.where(tens == tens.max())
+    return np.random.choice(max_inds)

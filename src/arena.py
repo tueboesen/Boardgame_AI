@@ -5,6 +5,9 @@ from time import sleep
 from collections import deque
 from tqdm import tqdm
 import os
+
+from hive.hive_utils import draw_board
+
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import pygame
 import numpy as np
@@ -16,7 +19,7 @@ class Arena():
     An Arena class where any number of players can be pitted against each other.
     """
 
-    def __init__(self, players, game, display=None):
+    def __init__(self, players, game, viz=None):
         """
         Input:
             player: a list of player objects
@@ -27,7 +30,7 @@ class Arena():
 
         self.players = deque(players)
         self.game = game
-        self.display = display
+        self.viz = viz
 
     @property
     def nplayers(self):
@@ -47,26 +50,28 @@ class Arena():
         if players is None:
             players = self.players
         game = self.game
-        if self.display is not None:
-            self.display.sync_ui_to_game(game)
-            self.display.redraw_game()
+        if self.viz is not None:
+            self.viz.sync_ui_to_game(game)
+            self.viz.redraw_game()
             pygame.display.update()
 
         actionhist = []
         while not game.game_over:
             player = players[game.current_player]
             action = player.determine_action(game)
+            # if game.turn > 5:
+            #     draw_board(game)
             game.perform_action(action)
             actionhist.append(action)
-            if self.display is not None:
+            if self.viz is not None:
                 pygame.event.get()
-                self.display.sync_ui_to_game(game)
-                self.display.redraw_game()
+                self.viz.sync_ui_to_game(game)
+                self.viz.redraw_game()
                 pygame.display.update()
-                self.display.clock.tick(30)
+                # self.viz.clock.tick(30)
                 sleep(0.01)
                 if save_images:
-                    pygame.image.save(self.display.screen,f'{i:03d}.png')
+                    pygame.image.save(self.viz.screen, f'{i:03d}.png')
                     i += 1
         # print("game over!")
         # input("Press any key to continue... ")
@@ -94,5 +99,5 @@ class Arena():
 
     def resetGame(self):
         self.game.reset()
-        for player in self.players:
-            player.reset()
+        # for player in self.players:
+        #     player.reset()

@@ -5,6 +5,8 @@ import torch
 from abc import ABC, abstractmethod
 
 from Templates.game import Game
+from Templates.ui import UI
+from src.mcts import MCTS
 
 
 class PlayerTemplate(ABC):
@@ -18,18 +20,22 @@ class PlayerTemplate(ABC):
     def reset(self):
         pass
 
+    def __str__(self):
+        return self.__class__.__name__
+
+
+
 class HumanPlayer(PlayerTemplate):
-    def __init__(self,display):
-        self.display = display
+    def __init__(self, ui: UI):
+        self.ui = ui
 
     def determine_action(self, game: Game) -> int:
         action = None
         while action is None:
-            self.display.get_mouse_hover()
-            action = self.display.handle_mouse_click()
-            self.display.redraw_game()
+            action = self.ui.get_user_input()
+            self.ui.redraw_game()
             pygame.display.update()
-            self.display.clock.tick(30)
+            # self.ui.clock.tick(30)
         return action
 
 
@@ -53,7 +59,7 @@ class MCTSNNPlayer(PlayerTemplate):
     In order for this player to work it needs a neural trained neural network that can somewhat accurately predict the
     action probability as well as the expected outcome.
     """
-    def __init__(self,mcts,description=None):
+    def __init__(self,mcts: MCTS,description=None):
         self.mcts = mcts
         self.description = description
 
@@ -64,6 +70,24 @@ class MCTSNNPlayer(PlayerTemplate):
     def reset(self):
         self.mcts.reset()
 
-    def __repr__(self):
-        cls = self.__class__.__name__
-        return f'{cls} (description={self.description!r}, mcts={self.mcts!r})'
+    # def __repr__(self):
+    #     cls = self.__class__.__name__
+    #     return f'{cls} (description={self.description!r}, mcts={self.mcts!r})'
+
+    def __str__(self):
+        if self.description is None:
+            return self.__class__.__name__
+        else:
+            return self.description
+
+HUMAN = {'fnc': HumanPlayer,
+         'req': [("viz", UI)],
+         }
+RANDOM = {'fnc': RandomPlayer,
+         'req': [],
+         }
+MCTSNN = {'fnc': MCTSNNPlayer,
+         'req': [("mcts",MCTS)],
+         }
+
+PLAYMODES = [RANDOM,MCTSNN] # We skip Human player since we can't really do unit testing on those

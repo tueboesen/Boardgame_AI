@@ -31,6 +31,13 @@ class Game(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def number_of_players(self):
+        """
+        Returns:
+            Number of players for the game
+        """
 
     @property
     @abstractmethod
@@ -64,6 +71,7 @@ class Game(ABC):
         """
         pass
 
+    @property
     @abstractmethod
     def reward(self):
         """

@@ -1,22 +1,18 @@
 from abc import ABC, abstractmethod
 
-class UI(ABC):
+from Templates.viz import Vizualization
+
+
+class UI(Vizualization):
     @abstractmethod
     def __init__(self,game):
         pass
 
 
     @abstractmethod
-    def redraw_game(self):
+    def get_user_input(self):
         """
-        A method that draws the board based on the information currently saved in UI
-        """
-        pass
-
-    @abstractmethod
-    def sync_ui_to_game(self, game):
-        """
-        A method that takes the current game state and updates UI with the relevant information
+        A method that gets the users input either in terms of mouse position/clicks or in terms of keyboard input
         """
         pass
 

@@ -9,7 +9,7 @@ from src.utils import *
 import sys
 
 from tictactoe.ttt_game import TicTacToeGame
-from tictactoe.ttt_ui import TicTacToeUI
+from tictactoe.ttt_viz import TicTacToeViz
 
 sys.setrecursionlimit(1000)
 
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 coloredlogs.install(level='INFO')  # Change this to DEBUG to see more info.
 
-args = dotdict({
+args = AttrDict({
     'numIters': 1000,
     'numEps': 1,              # Number of complete self-play games to simulate during a new iteration.
     'tempThreshold': 50,        #
@@ -38,7 +38,7 @@ def main():
 
     log.info('Loading %s...', TicTacToeGame.__name__)
     g = TicTacToeGame()
-    display = TicTacToeUI(g)
+    display = TicTacToeViz(g)
     # p1 = HumanPlayer(display)
     p1 = RandomPlayer(display)
     p2 = RandomPlayer(display)

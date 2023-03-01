@@ -2,11 +2,14 @@ import logging
 
 import coloredlogs
 
+from hive.hive_conf import hive_mcts_args, hive_nn_args
 from hive.hive_game import HiveGame
+from hive.nn.hive_nn import HiveNNet
 from src.arena import Arena
-from hive.nn.NNet import NNetWrapper
-from hive.hive_ui import UI
-from src.players import RandomPlayer
+from hive.hive_ui import UI, HiveUI
+from src.mcts import MCTS
+from src.nnet import NNetWrapper
+from src.players import RandomPlayer, HumanPlayer, MCTSNNPlayer
 from src.utils import *
 import sys
 sys.setrecursionlimit(1000)
@@ -15,7 +18,7 @@ log = logging.getLogger(__name__)
 
 coloredlogs.install(level='INFO')  # Change this to DEBUG to see more info.
 
-args = dotdict({
+args = AttrDict({
     'numIters': 1000,
     'numEps': 1,              # Number of complete self-play games to simulate during a new iteration.
     'tempThreshold': 50,        #
@@ -36,21 +39,23 @@ def main():
 
     log.info('Loading %s...', HiveGame.__name__)
     g = HiveGame()
-    display = UI(g)
+    display = HiveUI(g)
 
-    if args['opp'] == 'nn':
-        log.info('Loading %s...', NNetWrapper.__name__)
-        nnet = NNetWrapper(g)
-        assert args.load_model
-        log.info('Loading checkpoint "%s/%s"...', args.load_folder_file[0], args.load_folder_file[1])
-        nnet.load_checkpoint(args.load_folder_file[0], args.load_folder_file[1])
-
+    nn = HiveNNet(g,hive_nn_args)
+    nnet = NNetWrapper(g,nn,hive_nn_args)
+    mcts1 = MCTS(nnet,hive_mcts_args)
+    mcts2 = MCTS(nnet,hive_mcts_args)
     # p1 = HumanPlayer(display)
-    p1 = RandomPlayer(display)
-    p2 = RandomPlayer(display)
+    # p2 = HumanPlayer(display)
+    # p1 = RandomPlayer(display)
+    # p2 = RandomPlayer(display)
+    p1 = MCTSNNPlayer(mcts1)
+    p2 = MCTSNNPlayer(mcts2)
+
     players = [p1,p2]
     A = Arena(players,g,display)
-    A.playGame()
+    n = 50
+    A.playGames(n)
 
 
 

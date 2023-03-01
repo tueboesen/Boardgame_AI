@@ -49,6 +49,10 @@ class HiveGame(Game):
         return f"Turn: {self.turn},   Players turn: {'White' if self.whites_turn else 'Black'}"
 
     @property
+    def number_of_players(self):
+        return 2
+
+    @property
     def current_player(self):
         p = 0 if self.whites_turn else 1
         return p
@@ -72,9 +76,8 @@ class HiveGame(Game):
         self.npieces_per_player = len(self.hive_white)
         self.calculate_valid_moves()
         self.canon_actions = None
-        self.action_size = self.npieces_per_player * self.board_len * self.board_len
         self.transform = TransformMatrix()
-
+        self._game_over = False
 
     def rep_viz(self, hive):
         qr_viz = hive.qr.clone()
@@ -199,8 +202,8 @@ class HiveGame(Game):
         if self.hist.count(self.canonical_string_rep()) >= 3:
             self._game_over = True
         #
-        # if self.turn >= 100:
-        #     self.game_over = True
+        # if self.turn >= 10:
+        #     self._game_over = True
         #     self.hive_white.lost = True
         if self.game_over:
             if self.hive_white.lost ^ self.hive_black.lost:
@@ -209,14 +212,14 @@ class HiveGame(Game):
                 self.winner = None
             return
 
+    @property
     def reward(self):
         if self.winner is None:
-            reward = 0
+            reward = [0,0]
+        elif self.winner == 0:
+            reward = [1,-1]
         else:
-            if self.winner == self.current_player:
-                reward = 1
-            else:
-                reward = -1
+            reward = [-1,1]
         return reward
 
     def check_if_coordinate_filled(self,qr,hive):
@@ -750,8 +753,8 @@ class HiveGame(Game):
         i = action_idx // (self.board_len*self.board_len)
         j = (action_idx // self.board_len) % self.board_len
         k = action_idx % self.board_len
-        a = torch.arange(11*24*24)
-        b = a.view(11,24,24)
+        a = torch.arange(self.npieces_per_player*self.board_len*self.board_len)
+        b = a.view(self.npieces_per_player,self.board_len,self.board_len)
         assert b[i,j,k] == action_idx
         assert hive.moves[i,j,k] == True
         self.move_piece(i,j,k)

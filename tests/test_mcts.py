@@ -5,59 +5,38 @@ import torch
 
 from hive.hive_game import HiveGame
 from hive.nn.hive_nn import HiveNNet
-from src.config import mcts_args, nn_args
 from src.mcts import MCTS, Node
 import pytest
 
 from src.nnet import NNetWrapper
 from tictactoe.nn.ttt_nn import TicTacToeNNet
+from tictactoe.ttt_conf import ttt_mcts_args, ttt_nn_args
 from tictactoe.ttt_game import TicTacToeGame
 
-@pytest.fixture
-def game_ttt():
-    g = TicTacToeGame()
-    return g
-
-@pytest.fixture
-def node_ttt():
-    g = TicTacToeGame()
+# @pytest.fixture(params=[(TicTacToeGame(),TicTacToeNNet), (HiveGame(), HiveNNet)])
+@pytest.fixture(scope="module", params=[(TicTacToeGame(),TicTacToeNNet)])
+def mcts_node(request):
+    g,nn_fnc = request.param
+    nnet = nn_fnc(g,ttt_nn_args)
+    model = NNetWrapper(g,nnet,ttt_nn_args)
+    mcts_instance = MCTS(model, ttt_mcts_args)
     node = Node(g)
-    return node
+    return mcts_instance, node
 
-@pytest.fixture
-def mcts_ttt():
-    g = TicTacToeGame()
-    nnet = TicTacToeNNet(g,nn_args)
-    model = NNetWrapper(g,nnet,nn_args)
-    mcts_instance = MCTS(model, mcts_args)
-    return mcts_instance
+class TestMcts:
 
-# @pytest.fixture
-# def example_hive():
-#     g = HiveGame()
-#     nnet = HiveNNet(g,nn_args)
-#     model = NNetWrapper(g,nnet,nn_args)
-#     mcts = MCTS(model, mcts_args)
-#     return mcts
+    @pytest.fixture(autouse=True, scope='class')
+    def setup(self,mcts_node):
+        self.action_idx = 0
+        self.mcts, self.node = mcts_node
+        self.mcts.add_node(self.node)
+        self.child_node = self.mcts.select_childnode(self.node, self.action_idx)
 
+    def test_child_nodes_are_unique(self):
+        child_node2 = self.mcts.select_childnode(self.node, self.action_idx)
+        assert self.child_node != child_node2, "child nodes are not unique when they should be"
 
-@pytest.mark.parametrize("mcts, node, action_idx", [
-    (mcts_ttt, node_ttt, 0),
-])
-
-
-def test_select_childnode(mcts, node, action_idx):
-    """
-    Assert that childnode is creating a new node when needed.
-    Assert that childnode is not creating a new node when not needed.
-    """
-    mcts.nodes[node.id] = node
-    child_node = mcts.select_childnode(node, action_idx)
-    child_node2 = mcts.select_childnode(node, action_idx)
-    assert child_node != child_node2, "child nodes are not unique when they should be"
-    mcts.add_node(child_node, node.id, action_idx)
-
-    child_node2 = mcts.select_childnode(node, action_idx)
-    assert child_node == child_node2, "accessing the same child node that we previously added, should not create a new node"
-
-
+    def test_child_nodes_are_identical(self,):
+        self.mcts.add_node(self.child_node, self.node.id, self.action_idx)
+        child_node2 = self.mcts.select_childnode(self.node, self.action_idx)
+        assert self.child_node == child_node2, "accessing the same child node that we previously added, should not create a new node"
