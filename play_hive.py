@@ -45,11 +45,11 @@ def main():
     nnet = NNetWrapper(g,nn,hive_nn_args)
     mcts1 = MCTS(nnet,hive_mcts_args)
     mcts2 = MCTS(nnet,hive_mcts_args)
-    # p1 = HumanPlayer(display)
+    p1 = HumanPlayer(display)
     # p2 = HumanPlayer(display)
     # p1 = RandomPlayer(display)
     # p2 = RandomPlayer(display)
-    p1 = MCTSNNPlayer(mcts1)
+    # p1 = MCTSNNPlayer(mcts1)
     p2 = MCTSNNPlayer(mcts2)
 
     players = [p1,p2]

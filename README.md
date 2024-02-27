@@ -14,11 +14,7 @@ In short the game is made difficult by: translation, rotation and permutation eq
 ![RandomMoves](https://github.com/tueboesen/Hive_nn/blob/master/hive/icons/hive_example.gif)
 
 # Quick start
-The fastest way to try out the code is to fork the repository, install the requirements by running:
-```
-pip install -r requirements.txt
-```
-Note that it might not always work to install the packages through the requirements.txt, since for instance Pytorch have special install requirements if you want gpu support. In that case you should look at the individual packages website and see how they each should be installed.
+The fastest way to try out the code is to fork the repository and install the requirements in a poetry environment
 
 Once the requirements have been installed I suggest starting with: play_hive.py, which will start a simple Human versus Random game, and can easily be modified for other play modes.
 Note that for games using a neural network, a neural network needs to be trained first using train_hive.py

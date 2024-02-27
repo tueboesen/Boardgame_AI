@@ -5,91 +5,46 @@ import coloredlogs
 import numpy as np
 import torch
 
+from hive.hive_conf import hive_args
 from hive.hive_game import HiveGame
-from hive.hive_ui import UI
+from hive.hive_ui import HiveUI
+from hive.nn.hive_nn import HiveNNet
 from src.coach import Coach
-from hive.nn.NNet import NNetWrapper
+from src.nnet import NNetWrapper
 from src.utils import *
 import sys
+
+
 sys.setrecursionlimit(1000)
 
 log = logging.getLogger(__name__)
 
 coloredlogs.install(level='INFO')  # Change this to DEBUG to see more info.
 
-def fix_seed(seed: int, include_cuda: bool = True) -> None:
-    """
-    Set the seed in order to create reproducible results, note that setting the seed also does it for gpu calculations, which slows them down.
-    :param seed: an integer to fix the seed to
-    :param include_cuda: whether to fix the seed for cuda calculations as well
-    :return:
-    """
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    # if you are using GPU
-    if include_cuda:
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.enabled = False
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-
-args = dotdict({
-    'numIters': 1000,
-    'numEps': 1,              # Number of complete self-play games to simulate during a new iteration.
-    'tempThreshold': 50,        #
-    'updateThreshold': 0.6,     # During arena playoff, new neural net will be accepted if threshold or more of games are won.
-    'maxlenOfQueue': 200000,    # Number of game examples to train the neural networks.
-    'numMCTSSims': 2,          # Number of games moves for MCTS to simulate.
-    'arenaCompare': 10,         # Number of games to play during arena play to determine if new net will be accepted.
-    'cpuct': 1,
-
-    'checkpoint': './temp/',
-    'load_model': False,
-    'load_folder_file': ('/dev/models/8x100x50','best.pth.tar'),
-    'numItersForTrainExamplesHistory': 20,
-
-})
 
 
 def main():
-    # positions = torch.arange(20).repeat(2).view(-1, 2)
-    # positions[0,0] = 1
-    # xy_dst1 = torch.tensor((1, 7))
-    # xy_dst2 = torch.tensor((4, 5))
-    # positions == xy_dst1  # should give none
-    # positions == xy_dst2  # should give index 2 and 12
-    #
-    # def check(positions, xy):
-    #     return (positions == xy_dst1.view(1, 2)).all(dim=1).nonzero()
-    #
-    # print(check(positions, xy_dst1))
-    # # Output: tensor([], size=(0, 1), dtype=torch.int64)
-    #
-    # print(check(positions, xy_dst2))
-    # # Output:
-    # # tensor([[ 2],
-    # #         [12]])
-
     log.info('Loading %s...', HiveGame.__name__)
     g = HiveGame()
-    display = UI(g)
+    display = HiveUI(g)
     log.info('Loading %s...', NNetWrapper.__name__)
-    nnet = NNetWrapper(g)
+    conf = hive_args
+    nnet = HiveNNet(g,conf.nn)
+    model = NNetWrapper(g,nnet,conf.nn)
 
-    if args.load_model:
-        log.info('Loading checkpoint "%s/%s"...', args.load_folder_file[0], args.load_folder_file[1])
-        nnet.load_checkpoint(args.load_folder_file[0], args.load_folder_file[1])
+    if conf.load_previous:
+        log.info(f'Atempting to load checkpoint from folder {conf.folder}')
+        file = model.load_checkpoint(conf.folder,conf.model_file)
+        log.info(f"Successfully loaded model: {file}")
     else:
         log.warning('Not loading a checkpoint!')
 
     log.info('Loading the Coach...')
-    c = Coach(g, nnet, args,display=display)
+    c = Coach(g, model, display=display, args=conf)
 
-    if args.load_model:
+    if conf.load_previous:
         log.info("Loading 'trainExamples' from file...")
-        c.loadTrainExamples()
+        c.loadTrainExamples(conf.folder,conf.training_examples_file)
 
     log.info('Starting the learning process 🎉')
     c.learn()

@@ -1,6 +1,4 @@
 import graphviz
-from sklearn.datasets import load_iris
-from sklearn import tree
 """
 MCGS implementation modified from
 https://github.com/brilee/python_uct/blob/master/numpy_impl.py
