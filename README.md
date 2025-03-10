@@ -60,6 +60,7 @@ The project is still in an early version, among the things left to do are:
 - [ ] Gather all hyperparameters in config file, for easy modification 
 - [ ] pyx optimization
 - [ ] parallelization
+- [ ] Add pseudo-rewards to help guide the model, (+- points for locking queens in place, +- values for number of pieces around queens, +- values for locking up pieces?) 
 
 
 # Credit 
