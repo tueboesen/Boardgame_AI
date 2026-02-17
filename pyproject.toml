@@ -1,27 +1,29 @@
-[tool.poetry]
+[project]
 name = "Boardgame-AI"
-version = "0.1"
+version = "0.1.0"
 description = "A framework for training neural networks to play boardgames"
-authors = ["Tue Boesen <tue.boesen@protonmail.com>"]
-license = "MIT"
+authors = [
+    { name = "Tue Boesen", email = "Tue.Boesen@protonmail.com"}
+]
 readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "coloredlogs>=15.0.1",
+    "graphviz>=0.21",
+    "igraph>=1.0.0",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.2",
+    "pygame>=2.6.1",
+    "pynauty>=2.8.8.1",
+    "torch>=2.10.0",
+    "tqdm>=4.67.3",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11"
-torch = "^2.2.1"
-numpy = "^1.26.4"
-coloredlogs = "^15.0.1"
-tqdm = "^4.66.2"
-pygame = "^2.5.2"
-graphviz = "^0.20.1"
-igraph = "^0.11.4"
-pynauty = "^2.8.6"
-matplotlib = "^3.8.3"
+[tool.uv]
+package = false
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true }}]
 
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.2"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.10.3,<0.11.0"]
+build-backend = "uv_build"

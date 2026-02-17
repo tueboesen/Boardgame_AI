@@ -185,18 +185,20 @@ class HiveGame(Game):
             self.turn += 1
 
     def check_winners(self):
+        """
+        We should add how many squares of each queen is surrounded
+        At some point we should also check whether the queen is locked
+        """
         for hive in self.hives:
-            surrounded = True
+            hive.pieces_around_queen = 0
+            # surrounded = True
             if hive.in_play[0]:
                 qr = hive.qr[0]
                 for direction in DIRECTIONS:
                     qr_nn = qr+direction
                     if self.check_if_coordinate_filled(qr_nn,self.hive_white) or self.check_if_coordinate_filled(qr_nn,self.hive_black):
-                        pass
-                    else:
-                        surrounded = False
-                        break
-                if surrounded:
+                        hive.pieces_around_queen += 1
+                if hive.pieces_around_queen == 6:
                     hive.lost = True
                     self._game_over = True
         if self.hist.count(self.canonical_string_rep()) >= 3:
@@ -215,7 +217,10 @@ class HiveGame(Game):
     @property
     def reward(self):
         if self.winner is None:
-            reward = [0,0]
+            w0 = self.hives[0].pieces_around_queen
+            w1 = self.hives[1].pieces_around_queen
+            dw = (w0 - w1)/6
+            reward = [-dw,dw]
         elif self.winner == 0:
             reward = [1,-1]
         else:

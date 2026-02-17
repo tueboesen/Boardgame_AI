@@ -29,6 +29,7 @@ class Hive:
 
         self.first_of_type = torch.ones(len(torch.unique(self.types)),dtype=torch.bool)
         self.white = white
+        self.pieces_around_queen = 0
         return
 
     def __repr__(self) -> str:
