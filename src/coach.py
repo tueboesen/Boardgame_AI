@@ -42,7 +42,7 @@ class Coach():
         self.wins_champion = []
         self.start_iter = 0
         self.draws = []
-        self.use_dummy_nn_for_first_iteration = True
+        self.use_dummy_nn_for_first_iteration = False
         if self.args.load_previous:
             self.mcts.load(self.args.folder)
 

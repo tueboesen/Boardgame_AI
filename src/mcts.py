@@ -219,6 +219,9 @@ class MCTS:
                     value = 0.0
                 else:
                     child_priors, value = self.model.predict(leaf.nn_rep)
+                    # Lets try to go with the intermediate reward here, we should probably change this to be a mix of the two reward systems, such that the more training the model has had the more we trust the model prediction.
+                    value = leaf.value
+
                     valids = leaf.valid_actions
                     child_priors = child_priors[valids]
                     child_priors = child_priors / child_priors.sum()

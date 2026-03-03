@@ -67,6 +67,12 @@ The project is still in an early version, among the things left to do are:
 The overall framework is inspired by 
 https://github.com/suragnair/alpha-zero-general, while the Monte Carlo Tree Search algorithm is modified from https://github.com/ray-project/ray/blob/master/rllib/algorithms/alpha_zero/mcts.py
 
+# Improvements
+The main problem with the current approach is that it only rewards at the end of a game, and that a single game takes forever to reach a conclusion.
+Intermediate reward has been added depending on the number of pieces surrounding the queens, however it still takes forever. 
+In https://dl.acm.org/doi/epdf/10.1145/3489525.3511685 they use a few tricks to speed things up. They only play until 4 pieces are around the queen, and they only play 30 moves. Maybe it would be beneficial to start with a model does something similar to that. 
+Alternatively A model that focuses on locking the other persons queen, could be a viable strategy.
+
 
 
 
